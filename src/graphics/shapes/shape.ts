@@ -1,4 +1,7 @@
-class Shape {
+import {Shader} from "../gl/shader";
+import {Camera} from "../camera/camera";
+
+export class Shape {
     constructor() {
     }
 

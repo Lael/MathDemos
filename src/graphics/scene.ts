@@ -1,4 +1,8 @@
-class Scene {
+import { Camera } from "./camera/camera";
+import { Shader } from "./gl/shader";
+import { Shape } from "./shapes/shape";
+
+export class Scene {
     private readonly shapes: Map<string, Shape>;
 
     constructor() {

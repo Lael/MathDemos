@@ -1,4 +1,4 @@
-class Shader {
+export class Shader {
     private readonly vert: WebGLShader;
     private readonly frag: WebGLShader;
     private readonly program: WebGLProgram;
@@ -31,10 +31,8 @@ class Shader {
     }
 
     static fromPaths(gl: WebGL2RenderingContext, vertPath: string, fragPath: string): Shader {
-        // const vert = Shader.readShaderSource(vertPath);
-        // const frag = Shader.readShaderSource(fragPath);
-        const vert = "asdf";
-        const frag = "blah";
+        const vert = Shader.readShaderSource(vertPath);
+        const frag = Shader.readShaderSource(fragPath);
         console.log(vert, frag);
         return new Shader(gl, vert, frag);
     }
@@ -42,7 +40,8 @@ class Shader {
     private static readShaderSource(path: string): string {
         let source = '';
         fetch(path).then(async function(response) {
-            source = await response.text()
+            source = await response.text();
+            console.log(source);
         });
         return source;
     }
