@@ -1,8 +1,9 @@
 import { Component, AfterViewInit } from '@angular/core';
 import { Shader } from '../../../graphics/gl/shader';
-import {MathDemo} from "../math_demo";
-import {Scene} from "../../../graphics/scene";
-import {Camera} from "../../../graphics/camera/camera";
+import { MathDemo } from "../math_demo";
+import { Scene } from "../../../graphics/scene";
+import { Camera } from "../../../graphics/camera/camera";
+import { HyperbolicOuterBilliards } from './hyperbolic-outer-billiards';
 
 @Component({
   selector: 'app-billiards-demo',
@@ -11,7 +12,7 @@ import {Camera} from "../../../graphics/camera/camera";
 })
 export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
 
-  private gl: WebGL2RenderingContext|undefined = undefined;
+  private readonly hob = new HyperbolicOuterBilliards();
 
   constructor() {
     super();
@@ -30,13 +31,21 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
       return;
     }
 
-    this.gl = gl;
     console.log('GL context loaded');
 
     const scene = new Scene();
-    const shader = Shader.fromPaths(gl, '/resources/shaders/demo2d.frag', '/resources/shaders/demo2d.vert');
     const camera = new Camera();
-    this.run(scene, shader, camera);
+
+    Shader.fromPaths(gl, 'assets/shaders/demo2d.vert', 'assets/shaders/demo2d.frag').then(shader => {
+      this.run(gl, scene, shader, camera);
+    });
   }
 
+  protected override init(): void {
+    this.gl!.clearColor(0.2, 0, 0, 1);
+  }
+
+  protected override frame(dt: number): void {
+
+  }
 }
