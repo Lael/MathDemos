@@ -1,8 +1,10 @@
+import {Matrix4, Vector2, Vector3, Vector4} from "three";
+
 export class Shader {
     private readonly vert: WebGLShader;
     private readonly frag: WebGLShader;
     private readonly program: WebGLProgram;
-    private readonly uniformLocations: Map<String, number>;
+    private readonly uniformLocations: Map<String, WebGLUniformLocation>;
     private readonly uniformTypes: Map<String, number>;
 
     constructor(private readonly gl: WebGL2RenderingContext, vertSource: string, fragSource: string) {
@@ -31,13 +33,35 @@ export class Shader {
             // There were errors, so get the errors and display them.
             var error = gl.getProgramInfoLog(this.program);
             throw new Error('Failed to link program: ' + error);
-            return;
         }
         gl.useProgram(this.program);
 
         this.uniformLocations = new Map<String, number>();
         this.uniformTypes = new Map<String, number>();
+
+        this.fetchUniforms();
+        // this.fetchAttribs();
     }
+
+    private fetchUniforms(): void {
+        const n = this.gl.getProgramParameter(this.program, this.gl.ACTIVE_UNIFORMS);
+        for (let i = 0; i < n; i++) {
+            const info = this.gl.getActiveUniform(this.program, i);
+            if (!info) throw new Error('WebGLActiveInfo unexpectedly null');
+            const name = info.name;
+            const id = this.gl.getUniformLocation(this.program, name);
+            if (!id) throw new Error('WebGLUniformLocation unexpectedly null');
+            this.uniformLocations.set(name, id);
+            this.uniformTypes.set(name, info.type);
+        }
+    }
+
+    // private fetchAttribs(): void {
+    //     const n = this.gl.getProgramParameter(this.program, this.gl.ACTIVE_ATTRIBUTES);
+    //     for (let i = 0; i < n; i++) {
+    //         const attrib = this.gl.getActiveAttrib(this.program, i);
+    //     }
+    // }
 
     static fromPaths(gl: WebGL2RenderingContext, vertPath: string, fragPath: string): Promise<Shader> {
         return Shader.readShaderSource(vertPath).then(vert => {
@@ -66,4 +90,38 @@ export class Shader {
         }
         return shader;
     }
+
+    bind(): void {
+        this.gl.useProgram(this.program);
+    }
+
+    unbind(): void {
+        this.gl.useProgram(null);
+    }
+
+    private setUniformHelper(name: string, expectedType: number, v: any, f: Function) {
+        const location = this.uniformLocations.get(name);
+        const type = this.uniformTypes.get(name);
+        if (!location || !type) throw new Error('Unrecognized uniform');
+        if (type !== expectedType) throw new Error('Wrong uniform type');
+        const currentProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
+        this.bind();
+        f(location, v);
+        this.gl.useProgram(currentProgram);
+    }
+
+    setUniform(name: string, v: number|Vector2|Vector3|Vector4|Matrix4): void {
+        if (v instanceof Number)
+            this.setUniformHelper(name, this.gl.FLOAT, v, this.gl.uniform1f);
+        if (v instanceof Vector2)
+            this.setUniformHelper(name, this.gl.FLOAT_VEC2, [v.x, v.y], this.gl.uniform2fv);
+        if (v instanceof Vector3)
+            this.setUniformHelper(name, this.gl.FLOAT_VEC3, [v.x, v.y, v.z], this.gl.uniform3fv);
+        if (v instanceof Vector4)
+            this.setUniformHelper(name, this.gl.FLOAT_VEC4, [v.x, v.y, v.z, v.w], this.gl.uniform4fv);
+        if (v instanceof Matrix4)
+            this.setUniformHelper(name, this.gl.FLOAT_MAT4, v.elements,
+                (l: WebGLUniformLocation, v: number[]) => this.gl.uniformMatrix4fv(l, false, v));
+    }
 }
+

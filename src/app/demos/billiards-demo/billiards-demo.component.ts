@@ -1,9 +1,12 @@
 import { Component, AfterViewInit } from '@angular/core';
 import { Shader } from '../../../graphics/gl/shader';
-import { MathDemo } from "../math_demo";
+import { MathDemo } from "../math-demo";
 import { Scene } from "../../../graphics/scene";
-import { Camera } from "../../../graphics/camera/camera";
-import { HyperbolicOuterBilliards } from './hyperbolic-outer-billiards';
+import { HyperbolicOuterBilliards } from '../../../math/hyperbolic/hyperbolic-outer-billiards';
+import {Camera2D} from "../../../graphics/camera/camera2D";
+import {Complex} from "../../../math/complex";
+import {Color} from "../../../graphics/shapes/color";
+import {Disk, DiskSpec} from "../../../graphics/shapes/disk";
 
 @Component({
   selector: 'app-billiards-demo',
@@ -12,7 +15,7 @@ import { HyperbolicOuterBilliards } from './hyperbolic-outer-billiards';
 })
 export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
 
-  private readonly hob = new HyperbolicOuterBilliards();
+  private hob!: HyperbolicOuterBilliards;
 
   constructor() {
     super();
@@ -31,10 +34,13 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
       return;
     }
 
-    console.log('GL context loaded');
+    MathDemo.fixCanvasDimensions(canvas as HTMLCanvasElement);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
     const scene = new Scene();
-    const camera = new Camera();
+    const camera = new Camera2D();
+    camera.setZoom(Math.sqrt(2) / 0.9);
+    this.hob = new HyperbolicOuterBilliards(gl);
 
     Shader.fromPaths(gl, 'assets/shaders/demo2d.vert', 'assets/shaders/demo2d.frag').then(shader => {
       this.run(gl, scene, shader, camera);
@@ -42,7 +48,13 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
   }
 
   protected override init(): void {
-    this.gl!.clearColor(0.2, 0, 0, 1);
+    const color = Color.ONYX;
+    this.gl!.clearColor(color.r, color.g, color.b, 1);
+
+    // Poincaré disk model
+    this.scene!.set('disk', new Disk(this.gl!, new DiskSpec(new Complex(), 1, Color.BLUSH, Color.BLACK)))
+
+    this.hob.populateScene(this.scene!);
   }
 
   protected override frame(dt: number): void {
