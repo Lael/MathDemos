@@ -31,4 +31,8 @@ export class Scene {
 
         shader.unbind();
     }
+
+    clear() {
+        this.drawables.clear();
+    }
 }

@@ -42,11 +42,10 @@ export class ArcRegion {
             throw Error('Segments do not line up');
         }
         this.orientations.push(orientation);
-        const p1 = orientation > 0 ? s0.start : s0.end;
 
-        for (let i = 0; i < this.segments.length - 1; i++) {
-            s1 = this.segments[i + 1];
-            const p = orientation > 0 ? s0.end : s1.start;
+        for (let i = 1; i < this.segments.length; i++) {
+            s1 = this.segments[i];
+            const p = orientation > 0 ? s0.end : s0.start;
             if (s1.start.equals(p)) {
                 orientation = 1;
             } else if (s1.end.equals(p)) {
@@ -58,7 +57,8 @@ export class ArcRegion {
             s0 = s1;
         }
 
-        const p2 = orientation > 0 ? s1.end : s1.start;
+        const p1 = orientation > 0 ? s1.end : s1.start;
+        const p2 = this.orientations[0] > 0 ? this.segments[0].start : this.segments[0].end;
         if (!p1.equals(p2)) {
             throw Error('Segments do not line up');
         }
@@ -78,20 +78,24 @@ export class ArcRegion {
             const corner = normalizeAngle(h2 - h1);
             winding += curve + corner;
         }
-        if (winding < Math.PI) {
-            this.segments.reverse();
-            this.orientations.reverse();
-        }
+        // if (winding < Math.PI) {
+        //     this.segments.reverse();
+        //     this.orientations.reverse();
+        //     for (let i = 0; i < this.orientations.length; i++) {
+        //         this.orientations[i] = - this.orientations[i];
+        //     }
+        // }
     }
 
-    vertices(detail: number): Complex[] {
+    vertices(): Complex[] {
         const vertices: Complex[] = [];
         for (let i = 0; i < this.segments.length; i++) {
             const s = this.segments[i];
             const orientation = this.orientations[i];
 
-            const sv = s.interpolate(orientation, detail);
-            vertices.push(...sv.splice(sv.length - 1, 1));
+            const sv = s.interpolate(orientation);
+            vertices.push(...sv);
+            vertices.pop();
         }
         return vertices;
     }
@@ -156,9 +160,19 @@ export class ArcRegion {
         let w = 0;
         for (let i = 0; i < this.segments.length; i++) {
             const s = this.segments[i];
-            if (s.containsPoint(p)) return false;
+            if (s.containsPoint(p)) return true;
             w += s.wind(p) * this.orientations[i];
         }
         return w > Math.PI;
+    }
+
+    interiorPoint(): Complex {
+        let m = new Complex();
+        for (let s of this.segments) {
+            m = m.plus(s.mid);
+        }
+        const guess = m.scale(1 / this.segments.length);
+        if (this.containsPoint(guess)) return guess;
+        throw Error('Failed to find internal point');
     }
 }

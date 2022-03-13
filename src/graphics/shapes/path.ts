@@ -32,7 +32,6 @@ export class Path extends Drawable2D {
     }
 
     static fromSegment(gl: WebGL2RenderingContext, s: Segment, color: Color = Color.ONYX): Path {
-        console.log(s);
         if (s instanceof LineSegment) {
             return new Path(gl, new PathSpec([s.start, s.end], color));
         } else if (s instanceof ArcSegment) {

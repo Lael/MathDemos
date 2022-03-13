@@ -99,29 +99,33 @@ export class Shader {
         this.gl.useProgram(null);
     }
 
-    private setUniformHelper(name: string, expectedType: number, v: any, f: Function) {
+    private setUniformHelper(name: string, expectedType: number, f: Function) {
         const location = this.uniformLocations.get(name);
         const type = this.uniformTypes.get(name);
         if (!location || !type) throw new Error('Unrecognized uniform');
         if (type !== expectedType) throw new Error('Wrong uniform type');
         const currentProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
         this.bind();
-        f(location, v);
+        f(location);
         this.gl.useProgram(currentProgram);
     }
 
     setUniform(name: string, v: number|Vector2|Vector3|Vector4|Matrix4): void {
         if (v instanceof Number)
-            this.setUniformHelper(name, this.gl.FLOAT, v, this.gl.uniform1f);
+            this.setUniformHelper(name, this.gl.FLOAT,
+                (l: WebGLUniformLocation) => this.gl.uniform1f(l, v.valueOf() as number));
         if (v instanceof Vector2)
-            this.setUniformHelper(name, this.gl.FLOAT_VEC2, [v.x, v.y], this.gl.uniform2fv);
+            this.setUniformHelper(name, this.gl.FLOAT_VEC2,
+                (l: WebGLUniformLocation) => this.gl.uniform2f(l, v.x, v.y));
         if (v instanceof Vector3)
-            this.setUniformHelper(name, this.gl.FLOAT_VEC3, [v.x, v.y, v.z], this.gl.uniform3fv);
+            this.setUniformHelper(name, this.gl.FLOAT_VEC3,
+                (l: WebGLUniformLocation) => this.gl.uniform3f(l, v.x, v.y, v.z));
         if (v instanceof Vector4)
-            this.setUniformHelper(name, this.gl.FLOAT_VEC4, [v.x, v.y, v.z, v.w], this.gl.uniform4fv);
+            this.setUniformHelper(name, this.gl.FLOAT_VEC4,
+                (l: WebGLUniformLocation) => this.gl.uniform4f(l, v.x, v.y, v.z, v.w));
         if (v instanceof Matrix4)
-            this.setUniformHelper(name, this.gl.FLOAT_MAT4, v.elements,
-                (l: WebGLUniformLocation, v: number[]) => this.gl.uniformMatrix4fv(l, false, v));
+            this.setUniformHelper(name, this.gl.FLOAT_MAT4,
+                (l: WebGLUniformLocation) => this.gl.uniformMatrix4fv(l, false, v.elements));
     }
 }
 

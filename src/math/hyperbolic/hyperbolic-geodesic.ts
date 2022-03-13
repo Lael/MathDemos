@@ -114,4 +114,14 @@ export class HyperbolicGeodesic {
             this.circle!.center.heading(this.ideal1)
         );
     }
+
+    rightPortion() {
+        if (this.isDiameter) return new LineSegment(this.p1, this.ideal2);
+        return new Arc(
+            this.circle!.center,
+            this.circle!.radius,
+            this.circle!.center.heading(this.ideal2),
+            this.circle!.center.heading(this.p1)
+        );
+    }
 }

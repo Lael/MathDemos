@@ -49,7 +49,7 @@ export class Complex {
         return this.real * this.real + this.imag * this.imag;
     }
 
-    normalize(l: number): Complex {
+    normalize(l: number = 1): Complex {
         if (this.isZero()) throw Error('Cannot normalize 0');
         return new Complex(this.real, this.imag).scale(l / this.modulus())
     }

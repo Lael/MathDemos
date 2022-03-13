@@ -1,7 +1,9 @@
 <div class="container">
     <h2>Hyperbolic Outer Billiards</h2>
-    <canvas id="billiards-canvas" class="billiards-canvas"></canvas>
-    <div class="settings">
-
-    </div>
+    <canvas id="billiards-canvas"
+            class="billiards-canvas"
+            (mousedown)="onMouseDown($event)"
+            (mousemove)="onMouseMove($event)"
+            (mouseup)="onMouseUp($event)"
+    ></canvas>
 </div>

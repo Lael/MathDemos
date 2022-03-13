@@ -2,6 +2,7 @@ import {Shape2D, Vertex2D} from "./shape2D";
 import {Color} from "./color";
 import {Drawable2D} from "./drawable2D";
 import {Complex} from "../../math/complex";
+import {ArcRegion} from "../../math/geometry/arc-region";
 
 export class Polygon2D extends Drawable2D {
     private fill?: Shape2D;
@@ -52,6 +53,7 @@ export class Polygon2D extends Drawable2D {
 
         while (indices.length > 3) {
             const t = Polygon2D.nextEar(points, indices);
+            if (!t) break;
             const i = indices.indexOf(t.b);
             indices.splice(i, 1);
 
@@ -61,7 +63,7 @@ export class Polygon2D extends Drawable2D {
         return triangles;
     }
 
-    private static nextEar(points: Complex[], indices: number[]): Triangle {
+    private static nextEar(points: Complex[], indices: number[]): Triangle|null {
         for (let i = 0; i < indices.length; i++) {
             const l = indices[i];
             const m = indices[(i + 1) % indices.length];
@@ -76,7 +78,8 @@ export class Polygon2D extends Drawable2D {
 
             if (Polygon2D.triangleIsEmpty(p1, p2, p3, points, indices)) return new Triangle(l, m, h);
         }
-        throw Error('No more ears: malformed polygon?');
+        return null;
+        // throw Error('No more ears: malformed polygon?');
     }
 
     private static orientation(p1: Complex, p2: Complex, p3: Complex): boolean {
@@ -93,6 +96,13 @@ export class Polygon2D extends Drawable2D {
 
     private static triangleContainsPoint(p1: Complex, p2: Complex, p3: Complex, t: Complex): boolean {
         return Polygon2D.orientation(p1, p2, t) && Polygon2D.orientation(p2, p3, t) && Polygon2D.orientation(p3, p1, t);
+    }
+
+    static fromArcRegion(gl: WebGL2RenderingContext, r: ArcRegion, fill: Color|undefined, border: Color|undefined): Polygon2D {
+        console.log('from arc region');
+        const p = new Polygon2D(gl, new PolygonSpec(r.vertices(), fill, border));
+        console.log('from arc region done', p);
+        return p;
     }
 }
 

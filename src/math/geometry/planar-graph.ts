@@ -71,8 +71,8 @@ export class PlanarGraph {
         const cycles: Edge[][] = [];
 
         for (let e of this.edges) {
-            const c1 = this.getCycle(e, true);
-            const c2 = this.getCycle(e, false);
+            const c1 = PlanarGraph.getCycle(e, true);
+            const c2 = PlanarGraph.getCycle(e, false);
             if (c1.length <= 1 || c2.length <= 1) throw Error("Cycle of size 1");
 
             let i1 = true;

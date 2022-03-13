@@ -10,7 +10,11 @@ export class Arc extends Segment {
     readonly endAngle: number;
     constructor(readonly center: Complex, readonly radius: number, a1: number, a2: number) {
         super();
-        if (a1 >= a2) throw Error('Backwards arc');
+        if (a1 >= a2) {
+            const t = a2;
+            a2 = a1;
+            a1 = t;
+        }
         if (a2 - a1 > Math.PI * 2) throw Error('Arc too long');
         this.startAngle = normalizeAngle(a1);
         this.endAngle = normalizeAngle(a2, this.startAngle);
@@ -94,7 +98,7 @@ export class Arc extends Segment {
 
     override interpolate(direction: number): Complex[] {
         const pts: Complex[] = [];
-        const segments = Math.round(this.endAngle - this.startAngle) * 180 / Math.PI + 1;
+        const segments = Math.round(Math.abs(this.endAngle - this.startAngle) * 180 / Math.PI) + 1;
         for (let i = 0; i < segments; i++) {
             const theta = this.startAngle + i * (this.endAngle - this.startAngle) / segments;
             pts.push(this.center.plus(Complex.polar(this.radius, theta)));

@@ -46,4 +46,14 @@ export class Framebuffer {
         this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
         this.colorTexture.unbind();
     }
+
+    readPixel(x: number, y: number): number {
+        if (this.type !== this.gl.UNSIGNED_BYTE) throw Error('Not implemented for this type');
+        const data = new Uint8Array(4);
+        this.bind();
+        this.gl.readPixels(x, y, 1, 1, this.format, this.type, data);
+        const id = data[0] + (data[1] << 8) + (data[2] << 16) + (data[3] << 24);
+        this.unbind();
+        return id;
+    }
 }

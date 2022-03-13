@@ -90,7 +90,7 @@ export class LineSegment extends Segment {
         return pieces;
     }
 
-    override interpolate(direction: number, segments: number): Complex[] {
+    override interpolate(direction: number): Complex[] {
         return direction > 0 ? [this.p1, this.p2] : [this.p2, this.p1];
     }
 }

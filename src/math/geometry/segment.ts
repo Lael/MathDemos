@@ -8,7 +8,7 @@ export abstract class Segment {
     abstract containsPoint(p: Complex): boolean;
 
     abstract wind(p: Complex): number;
-    abstract interpolate(direction: number, detail: number): Complex[];
+    abstract interpolate(direction: number): Complex[];
     abstract split(points: Complex[]): Segment[];
 
     abstract startHeading(): number;
