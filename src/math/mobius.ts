@@ -1,8 +1,11 @@
 import {Transformation} from "./transformation";
 import {Complex} from "./complex";
 import {HyperbolicGeodesic} from "./hyperbolic/hyperbolic-geodesic";
+import {solveQuadratic} from "./math-helpers";
 
 export class Mobius extends Transformation {
+    static readonly IDENTITY = new Mobius(new Complex(1, 0), new Complex(), new Complex(), new Complex(1, 0));
+
     constructor(
         private readonly a: Complex,
         private readonly b: Complex,
@@ -32,6 +35,11 @@ export class Mobius extends Transformation {
             this.c.times(inner.a).plus(this.d.times(inner.c)),
             this.c.times(inner.b).plus(this.d.times(inner.d)),
         )
+    }
+
+    fixedPoints(): Complex[] {
+        if (this.c.isZero()) return [this.b.over(this.d.minus(this.a))];
+        return solveQuadratic(this.c, this.d.minus(this.a), this.b.scale(-1));
     }
 
     static to01Inf(z1: Complex, z2: Complex, z3: Complex): Mobius {

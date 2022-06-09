@@ -103,6 +103,7 @@ export class ArcRegion {
     shatter(slices: Segment[]): ArcRegion[] {
         let regions: ArcRegion[] = [this];
         for (let slice of slices) {
+            console.log(regions);
             regions = regions.flatMap(r => r.shatterOnce(slice));
         }
         return regions;
@@ -113,7 +114,7 @@ export class ArcRegion {
         const cutPoints: Complex[] = [];
 
         for (let s of this.segments) {
-                // By assumption, slice's endpoints lie outside conv(this)
+            // By assumption, slice's endpoints lie outside conv(this)
             if (slice.containsPoint(s.start) && slice.containsPoint(s.mid) && slice.containsPoint(s.end)) {
                 splitSegments.push(s);
                 cutPoints.push(s.start, s.end);
@@ -173,6 +174,19 @@ export class ArcRegion {
         }
         const guess = m.scale(1 / this.segments.length);
         if (this.containsPoint(guess)) return guess;
+
+        for (let s of this.segments) {
+            const d = s.end.minus(s.start).times(new Complex(0, 1)).normalize(0.000_001);
+            const g1 = s.mid.plus(d);
+            const g2 = s.mid.minus(d);
+            if (this.containsPoint(g1)) return g1;
+            if (this.containsPoint(g2)) return g2;
+        }
+        console.log(this);
         throw Error('Failed to find internal point');
+    }
+
+    convexIntersect(_: ArcRegion): ArcRegion {
+        throw new Error('Not yet implemented');
     }
 }

@@ -26,7 +26,7 @@ export class Scene {
         shader.setUniform('uCamera', camera.matrix);
 
         for (let drawable of this.drawables.values()) {
-            drawable.draw();
+            drawable.draw(shader);
         }
 
         shader.unbind();

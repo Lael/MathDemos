@@ -3,9 +3,12 @@ export class Complex {
     static readonly INFINITY = new Complex(Infinity, Infinity);
     static readonly I = new Complex(0, 1);
 
+    private arg?: number;
+    private mod?: number;
+
     constructor(readonly real: number = 0, readonly imag: number = 0) {
         if (isNaN(real) || isNaN(imag)) {
-            throw new Error("Cannot pass NaN to complex.");
+            throw new Error('Cannot pass NaN to complex.');
         }
     }
 
@@ -40,8 +43,11 @@ export class Complex {
     }
 
     modulus(): number {
-        if (this.isInfinite()) return Infinity;
-        return Math.sqrt(this.real * this.real + this.imag * this.imag);
+        if (this.mod === undefined) {
+            if (this.isInfinite()) this.mod = Infinity;
+            this.mod = Math.sqrt(this.real * this.real + this.imag * this.imag);
+        }
+        return this.mod;
     }
 
     modulusSquared(): number {
@@ -50,6 +56,7 @@ export class Complex {
     }
 
     normalize(l: number = 1): Complex {
+        if (isNaN(l)) throw Error('Normalizing length is NaN');
         if (this.isZero()) throw Error('Cannot normalize 0');
         return new Complex(this.real, this.imag).scale(l / this.modulus())
     }
@@ -57,7 +64,8 @@ export class Complex {
     argument(): number {
         if (this.isInfinite()) throw Error('Infinity has no argument');
         if (this.isZero()) throw Error('Zero has no argument');
-        return Math.atan2(this.imag, this.real);
+        if (this.arg === undefined) this.arg = Math.atan2(this.imag, this.real);
+        return this.arg;
     }
 
     conjugate(): Complex {
@@ -80,10 +88,10 @@ export class Complex {
 
     times(other: Complex): Complex {
         if (this.isInfinite() && other.isZero()) {
-            throw Error("Indeterminate form: inf * 0");
+            throw Error('Indeterminate form: inf * 0');
         }
         if (this.isZero() && other.isInfinite()) {
-            throw Error("Indeterminate form: 0 * inf");
+            throw Error('Indeterminate form: 0 * inf');
         }
         if (this.isInfinite() || other.isInfinite()) {
             return Complex.INFINITY;
@@ -95,14 +103,30 @@ export class Complex {
 
     over(other: Complex): Complex {
         if (this.isInfinite() && other.isInfinite()) {
-            throw Error("Indeterminate form: inf / inf");
+            throw Error('Indeterminate form: inf / inf');
         }
         if (this.isZero() && other.isZero()) {
-            throw Error("Indeterminate form: 0 / 0");
+            throw Error('Indeterminate form: 0 / 0');
         }
         if (other.isZero()) return Complex.INFINITY;
         if (other.isInfinite()) return new Complex();
         return this.times(other.conjugate()).scale(1 / other.modulusSquared());
+    }
+
+    sqrt(): Complex {
+        return this.pow(0.5);
+    }
+
+    pow(p: number): Complex {
+        if (!isFinite(p)) throw Error('Non-finite powers are not supported');
+        if (this.isZero()) return new Complex();
+        if (this.isInfinite()) {
+            if (p === 0) throw Error('Indeterminate form: inf ^ 0');
+            return Complex.INFINITY;
+        }
+        const r = Math.pow(this.modulus(), p);
+        const a = this.argument() * p;
+        return Complex.polar(r, a);
     }
 
     distance(other: Complex): number {

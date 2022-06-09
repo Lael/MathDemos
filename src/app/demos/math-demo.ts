@@ -4,6 +4,7 @@ import {Scene} from "../../graphics/scene";
 import {Framebuffer} from "../../graphics/gl/framebuffer";
 import {Vector4} from "three";
 import {Drawable2D} from "../../graphics/shapes/drawable2D";
+import {Complex} from "../../math/complex";
 import {Color} from "../../graphics/shapes/color";
 
 export class MathDemo {
@@ -54,21 +55,29 @@ export class MathDemo {
         this.frame(dt);
         this.gl.enable(this.gl.CULL_FACE);
 
+        this.pickFB.bind();
         this.gl.clearColor(0, 0, 0, 0);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
+        this.gl.disable(this.gl.BLEND);
         this.pickShader.bind();
         this.pickShader.setUniform('uCamera', this.camera.matrix);
-        this.pickFB.bind();
         this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-        for (let s of this.selectables.values()) s.draw(this.pickShader);
+        for (let s of this.selectables.values()) {
+            s.draw(this.pickShader);
+        }
         this.pickFB.unbind();
 
+        this.gl.enable(this.gl.BLEND);
+        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
         this.viewShader.bind();
         const color = Color.ONYX;
         this.gl.clearColor(color.r, color.g, color.b, 1);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
         this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+        // for (let s of this.selectables.values()) {
+        //     s.draw(this.pickShader);
+        // }
         this.scene.draw(this.viewShader, this.camera);
         window.requestAnimationFrame(this.loop.bind(this));
     }
@@ -77,20 +86,31 @@ export class MathDemo {
         const pixelX = x * this.gl.canvas.width / this.gl.canvas.clientWidth;
         const pixelY = this.gl.canvas.height - y * this.gl.canvas.height / this.gl.canvas.clientHeight - 1;
         this.selectedID = this.pickFB.readPixel(pixelX, pixelY);
-        console.log(this.selectedID);
-        if (this.selectedID > 0) this.selectables.get(this.selectedID)?.mouseDown(x, y);
+        if (this.selectedID > 0) {
+            const s = this.selectables.get(this.selectedID);
+            s?.mouseDown(x, y, s);
+        }
     }
 
     protected mouseMove(x: number, y: number): void {
         if (this.selectedID <= 0) return;
-        console.log('got one!');
-        this.selectables.get(this.selectedID)?.mouseMove(x, y);
+        const s = this.selectables.get(this.selectedID);
+        s?.mouseMove(x, y, s);
     }
 
     protected mouseUp(x: number, y: number): void {
         if (this.selectedID <= 0) return;
-        this.selectables.get(this.selectedID)?.mouseUp(x, y);
+        const s = this.selectables.get(this.selectedID);
+        s?.mouseUp(x, y, s);
         this.selectedID = 0;
+    }
+
+    protected viewportToWorld(x: number, y: number): Complex {
+        const xScreen = x * MathDemo.ANTI_ALIASING / this.canvas.width * 2 - 1;
+        const yScreen = 1 - y * MathDemo.ANTI_ALIASING  / this.canvas.height * 2;
+        const v = new Vector4(xScreen, yScreen, 0, 1);
+        const world = v.applyMatrix4(this.camera.matrix.invert());
+        return new Complex(world.x, world.y);
     }
 
     protected addSelectable(label: string, selectable: Selectable) {
@@ -120,7 +140,7 @@ export class Selectable {
     private static nextID: number = 1;
     readonly id: number;
     private readonly uId: Vector4;
-    constructor(private readonly drawable: Drawable2D,
+    constructor(protected readonly drawable: Drawable2D,
                 readonly mouseDown: Function,
                 readonly mouseMove: Function,
                 readonly mouseUp: Function, ) {
@@ -135,6 +155,6 @@ export class Selectable {
 
     draw(shader: Shader) {
         shader.setUniform('uId', this.uId);
-        this.drawable.draw();
+        this.drawable.draw(shader);
     }
 }

@@ -45,10 +45,11 @@ export class Arc extends Segment {
     }
 
     override containsPoint(p: Complex): boolean {
-        const theta = normalizeAngle(this.center.heading(p), this.startAngle);
-        const aMatch = theta <= this.endAngle;
-        const rMatch = closeEnough(this.center.distance(p), this.radius);
-        return aMatch && rMatch;
+        // const theta = normalizeAngle(this.center.heading(p), this.startAngle);
+        // const aMatch = theta <= this.endAngle;
+        // const rMatch = closeEnough(this.center.distance(p), this.radius);
+        // return aMatch && rMatch;
+        return (normalizeAngle(this.center.heading(p), this.startAngle) < this.endAngle) && closeEnough(this.center.distance(p), this.radius);
     }
 
     override startHeading(): number {
@@ -91,6 +92,7 @@ export class Arc extends Segment {
         for (let i = 0; i < headings.length - 1; i++) {
             const a = headings[i];
             const b = headings[i + 1];
+            if (a === b) continue;
             pieces.push(new Arc(this.center, this.radius, a, b));
         }
         return pieces;

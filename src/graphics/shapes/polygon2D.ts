@@ -99,24 +99,19 @@ export class Polygon2D extends Drawable2D {
     }
 
     static fromArcRegion(gl: WebGL2RenderingContext, r: ArcRegion, fill: Color|undefined, border: Color|undefined): Polygon2D {
-        console.log('from arc region');
-        const p = new Polygon2D(gl, new PolygonSpec(r.vertices(), fill, border));
-        console.log('from arc region done', p);
-        return p;
+        return new Polygon2D(gl, new PolygonSpec(r.vertices(), fill, border));
     }
 }
 
 class Triangle {
-    constructor(readonly a: number, readonly b: number, readonly c: number) {
-    }
+    constructor(readonly a: number, readonly b: number, readonly c: number) {}
 }
 
 export class PolygonSpec {
     constructor(
         readonly vertices: Complex[],
         readonly fillColor: Color|undefined,
-        readonly borderColor: Color|undefined
-    ) {
+        readonly borderColor: Color|undefined) {
         if (vertices.length < 3) throw Error('Polygon must have at least 3 vertices');
         if (!fillColor && !borderColor) throw Error('Invisible polygon');
     }

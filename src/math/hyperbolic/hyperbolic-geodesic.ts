@@ -77,31 +77,43 @@ export class HyperbolicGeodesic {
 
     leftTail(): Segment {
         if (this.isDiameter) return new LineSegment(this.p1, this.ideal1);
+        const ha = this.circle!.center.heading(this.p1);
+        const hb = this.circle!.center.heading(this.ideal1);
+        const swap = normalizeAngle(hb, ha) - ha > Math.PI;
+        const a = swap ? hb : ha;
+        const b = normalizeAngle(swap ? ha : hb, a);
         return new Arc(
             this.circle!.center,
             this.circle!.radius,
-            this.circle!.center.heading(this.p1),
-            this.circle!.center.heading(this.ideal1)
+            a, b,
         );
     }
 
     centralSegment(): Segment {
         if (this.isDiameter) return new LineSegment(this.p1, this.p2);
+        const ha = this.circle!.center.heading(this.p1);
+        const hb = this.circle!.center.heading(this.p2);
+        const swap = normalizeAngle(hb, ha) - ha > Math.PI;
+        const a = swap ? hb : ha;
+        const b = normalizeAngle(swap ? ha : hb, a);
         return new Arc(
             this.circle!.center,
             this.circle!.radius,
-            this.circle!.center.heading(this.p2),
-            this.circle!.center.heading(this.p1),
+            a, b,
         );
     }
 
     rightTail(): Segment {
         if (this.isDiameter) return new LineSegment(this.p2, this.ideal2);
+        const ha = this.circle!.center.heading(this.ideal2);
+        const hb = this.circle!.center.heading(this.p2);
+        const swap = normalizeAngle(hb, ha) - ha > Math.PI;
+        const a = swap ? hb : ha;
+        const b = normalizeAngle(swap ? ha : hb, a);
         return new Arc(
             this.circle!.center,
             this.circle!.radius,
-            this.circle!.center.heading(this.ideal2),
-            this.circle!.center.heading(this.p2)
+            a, b
         );
     }
 

@@ -1,12 +1,9 @@
 import { Component, AfterViewInit } from '@angular/core';
 import { Shader } from '../../../graphics/gl/shader';
-import {MathDemo, Selectable} from "../math-demo";
+import {MathDemo} from "../math-demo";
 import { Scene } from "../../../graphics/scene";
 import {HyperbolicOuterBilliards, VertexHandle} from '../../../math/hyperbolic/hyperbolic-outer-billiards';
 import {Camera2D} from "../../../graphics/camera/camera2D";
-import {Complex} from "../../../math/complex";
-import {Color} from "../../../graphics/shapes/color";
-import {Disk, DiskSpec} from "../../../graphics/shapes/disk";
 
 @Component({
   selector: 'app-billiards-demo',
@@ -30,6 +27,8 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
 
     this.fixCanvasDimensions(canvas as HTMLCanvasElement);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     const scene = new Scene();
     const camera = new Camera2D();
@@ -47,18 +46,11 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
   }
 
   protected override init(): void {
-    // Poincaré disk model
-    this.scene.set('disk', new Disk(this.gl!, new DiskSpec(new Complex(), 1, Color.BLUSH, Color.BLACK)))
-
     this.hob.populateScene(this.scene!);
 
     for (let i = 0; i < this.hob.vertices.length; i++) {
-      this.addSelectable(`vertex_handle_${i + 1}`, new VertexHandle(this.gl, i, this.hob, this.scene, this.pixelToWorld));
+      this.addSelectable(`vertex_handle_${i + 1}`, new VertexHandle(this.gl, i, this.hob, this.scene, this.viewportToWorld.bind(this)));
     }
-  }
-
-  pixelToWorld(x: number, y: number): Complex {
-    return new Complex();
   }
 
   onMouseDown(e: MouseEvent) {
@@ -83,6 +75,6 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
   }
 
   protected override frame(dt: number): void {
-
+    this.hob.populateScene(this.scene!);
   }
 }

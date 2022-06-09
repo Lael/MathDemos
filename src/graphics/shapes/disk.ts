@@ -5,9 +5,10 @@ import {Arc, ArcSpec} from "./arc";
 
 export class Disk extends Polygon2D {
     constructor(gl: WebGL2RenderingContext, spec: DiskSpec) {
-        const arcSpec = new ArcSpec(spec.center, spec.radius, 0, 2 * Math.PI, Color.BLACK);
+        const arcSpec = new ArcSpec(new Complex(), spec.radius, 0, 2 * Math.PI, Color.BLACK);
         const vertices = Arc.interpolate(arcSpec);
         super(gl, new PolygonSpec(vertices, spec.fill, spec.border));
+        this.model.setPosition(spec.center.x, spec.center.y, 0);
     }
 }
 

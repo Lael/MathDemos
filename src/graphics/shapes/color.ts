@@ -1,4 +1,5 @@
 export class Color {
+    static ZERO: Color = new Color(0, 0, 0, 0);
     static RED: Color = new Color(1, 0, 0);
     static GREEN: Color = new Color(0, 1, 0);
     static BLUE: Color = new Color(0, 0, 1);

@@ -1,5 +1,6 @@
 import {Complex} from "../complex";
 import {Line} from "./line";
+import {closeEnough} from "../math-helpers";
 
 export class Circle {
     constructor(readonly center: Complex, readonly radius: number) {
@@ -16,14 +17,15 @@ export class Circle {
     intersectCircle(other: Circle): Complex[] {
         const v = other.center.minus(this.center);
         const d = v.modulus();
-        if (v.isZero()) {
-            if (this.radius === other.radius) throw Error('Trivial circle-circle intersection');
+        if (closeEnough(d, 0)) {
+            // if (this.radius === other.radius) throw Error('Trivial circle-circle intersection');
             return [];
         }
         if (d > this.radius + other.radius || d < Math.abs(this.radius - other.radius)) return [];
         if (d === this.radius + other.radius) return [this.center.plus(v.normalize(this.radius))];
         const x = (d * d - other.radius * other.radius + this.radius * this.radius) / (2 * d);
         const y = Math.sqrt(this.radius * this.radius - x * x);
+        if (isNaN(y)) console.log(this.radius, other.radius, d, x);
         const c = this.center.plus(v.normalize(x));
         const perp = v.times(Complex.I).normalize(y);
         return [c.plus(perp), c.minus(perp)];
