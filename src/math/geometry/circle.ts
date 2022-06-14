@@ -55,7 +55,7 @@ export class Circle {
         const p = new Complex(x, y);
         if (Math.abs(d) === r) return [p];
         const diff = new Complex(-line.b, line.a).normalize(Math.sqrt(r * r - d * d));
-        return [p.minus(diff), p.minus(diff)];
+        return [p.minus(diff), p.plus(diff)];
     }
 
     containsPoint(p: Complex): boolean {

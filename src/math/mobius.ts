@@ -6,19 +6,29 @@ import {solveQuadratic} from "./math-helpers";
 export class Mobius extends Transformation {
     static readonly IDENTITY = new Mobius(new Complex(1, 0), new Complex(), new Complex(), new Complex(1, 0));
 
+    private readonly a: Complex;
+    private readonly b: Complex;
+    private readonly c: Complex;
+    private readonly d: Complex;
+
     constructor(
-        private readonly a: Complex,
-        private readonly b: Complex,
-        private readonly c: Complex,
-        private readonly d: Complex) {
+        a: Complex,
+        b: Complex,
+        c: Complex,
+        d: Complex) {
         super();
         const det = a.times(d).minus(b.times(c));
         if (det.isZero()) throw Error('Degenerate Möbius transformation');
         if (a.isInfinite() || b.isInfinite() || c.isInfinite() || d.isInfinite())
             throw Error('Möbius transformation with infinite coefficient');
+        this.a = a.over(det);
+        this.b = b.over(det);
+        this.c = c.over(det);
+        this.d = d.over(det);
     }
 
     override apply(z: Complex): Complex {
+        if (z.isInfinite()) return this.a.over(this.c);
         const n = this.a.times(z).plus(this.b);
         const d = this.c.times(z).plus(this.d);
         return n.over(d);
@@ -94,5 +104,12 @@ export class Mobius extends Transformation {
 
     override toString(): string {
         return `[(${this.a})z + (${this.b})] / [${this.c}z + (${this.d})]`;
+    }
+
+    equals(other: Mobius) {
+        return this.a.equals(other.a)
+            && this.b.equals(other.b)
+            && this.c.equals(other.c)
+            && this.d.equals(other.d);
     }
 }

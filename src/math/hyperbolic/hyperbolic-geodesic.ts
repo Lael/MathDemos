@@ -4,7 +4,7 @@ import {normalizeAngle} from "../math-helpers";
 import {Line} from "../geometry/line";
 import {Segment} from "../geometry/segment";
 import {LineSegment} from "../geometry/line-segment";
-import {Arc} from "../geometry/arc";
+import {ArcSegment} from "../geometry/arc-segment";
 
 export class HyperbolicGeodesic {
     readonly isDiameter: boolean;
@@ -82,7 +82,7 @@ export class HyperbolicGeodesic {
         const swap = normalizeAngle(hb, ha) - ha > Math.PI;
         const a = swap ? hb : ha;
         const b = normalizeAngle(swap ? ha : hb, a);
-        return new Arc(
+        return new ArcSegment(
             this.circle!.center,
             this.circle!.radius,
             a, b,
@@ -96,7 +96,7 @@ export class HyperbolicGeodesic {
         const swap = normalizeAngle(hb, ha) - ha > Math.PI;
         const a = swap ? hb : ha;
         const b = normalizeAngle(swap ? ha : hb, a);
-        return new Arc(
+        return new ArcSegment(
             this.circle!.center,
             this.circle!.radius,
             a, b,
@@ -110,7 +110,7 @@ export class HyperbolicGeodesic {
         const swap = normalizeAngle(hb, ha) - ha > Math.PI;
         const a = swap ? hb : ha;
         const b = normalizeAngle(swap ? ha : hb, a);
-        return new Arc(
+        return new ArcSegment(
             this.circle!.center,
             this.circle!.radius,
             a, b
@@ -119,7 +119,7 @@ export class HyperbolicGeodesic {
 
     entireSegment(): Segment {
         if (this.isDiameter) return new LineSegment(this.ideal1, this.ideal2);
-        return new Arc(
+        return new ArcSegment(
             this.circle!.center,
             this.circle!.radius,
             this.circle!.center.heading(this.ideal2),
@@ -129,7 +129,7 @@ export class HyperbolicGeodesic {
 
     rightPortion() {
         if (this.isDiameter) return new LineSegment(this.p1, this.ideal2);
-        return new Arc(
+        return new ArcSegment(
             this.circle!.center,
             this.circle!.radius,
             this.circle!.center.heading(this.ideal2),

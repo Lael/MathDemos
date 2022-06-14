@@ -1,80 +1,120 @@
-import {HyperbolicPolygon, HyperbolicPolygonSpec} from "../../graphics/shapes/hyperbolic-polygon";
+import {HyperPolygon, HyperSegment, IdealArc} from "./hyper-polygon";
 import {Complex} from "../complex";
 import {Color} from "../../graphics/shapes/color";
 import {Scene} from "../../graphics/scene";
-import {Mobius} from "../mobius";
-import {HyperbolicGeodesic} from "./hyperbolic-geodesic";
-import {normalizeAngle} from "../math-helpers";
-import {Arc as ArcSegment} from "../geometry/arc";
-import {Segment} from "../geometry/segment";
-import {LineSegment} from "../geometry/line-segment";
-import {Circle} from "../geometry/circle";
 import {Selectable} from "../../app/demos/math-demo";
 import {Disk, DiskSpec} from "../../graphics/shapes/disk";
-import {ArcRegion} from "../geometry/arc-region";
 import {MultiArc} from "../../graphics/shapes/multi-path";
+import {HyperbolicModel, HyperGeodesic, HyperIsometry, HyperPoint} from "./hyperbolic";
+import {closeEnough, normalizeAngle} from "../math-helpers";
 
 interface Orbit {
     word: number[];
-    points: Complex[];
+    points: HyperPoint[];
+    map: HyperIsometry;
 }
 
-const MAX_ORBIT_SEARCH_ITERATIONS = 10;
+const MAX_ORBIT_SEARCH_ITERATIONS = 4;
+
+export class HyperbolicOuterBilliardsSettings {
+    model: HyperbolicModel = HyperbolicModel.POINCARE;
+    equilateralRadius: number = 0.2;
+    vertexCount: number = 3;
+}
+
+export class HyperbolicOuterBilliardsResults {
+    orbit: boolean = false;
+    orbitLength: number = -1;
+    orbitMapRotation: number = -1;
+
+    reset() {
+        this.orbit = false;
+        this.orbitLength = -1;
+        this.orbitMapRotation = -1;
+    }
+}
 
 export class HyperbolicOuterBilliards {
-    private table!: HyperbolicPolygon;
-    readonly vertices: Complex[] = [];
-    readonly mobii: Mobius[] = [];
-    private inProgressSegments: Segment[] = [];
+    vertices: HyperPoint[] = [];
+    private table!: HyperPolygon;
+    private maps: HyperIsometry[] = [];
+
+    private inProgressGeodesics: HyperGeodesic[] = [];
     private inProgressN = 0;
     private arcPreimages: MultiArc[] = [];
-    private startRegions: ArcRegion[] = [];
-    private imageRegions: ArcRegion[] = [];
+    private startRegions: HyperPolygon[] = [];
+    private imageRegions: HyperPolygon[] = [];
     private orbits: Orbit[] = [];
 
-    constructor(private readonly gl: WebGL2RenderingContext) {
-        const n = 3;
-        const r = 0.1;
+    constructor(private readonly gl: WebGL2RenderingContext,
+                readonly settings: HyperbolicOuterBilliardsSettings,
+                readonly results: HyperbolicOuterBilliardsResults) {
+        this.equilateral();
+    }
+
+    equilateral() {
+        this.vertices = [];
+        this.maps = [];
+        const n = this.settings.vertexCount;
+        const r = this.settings.equilateralRadius;
         for (let i = 0; i < n; i++) {
-            const v = Complex.polar(r, i * 2 * Math.PI / n + Math.PI / 2);
+            const v = HyperPoint.fromPoincare(Complex.polar(r, i * 2 * Math.PI / n + Math.PI / 2));
             this.vertices.push(v);
-            this.mobii.push(Mobius.pointInversion(v));
+            this.maps.push(HyperIsometry.pointInversion(v));
         }
+        this.redraw();
+    }
+
+    moveVertex(index: number, destination: Complex): void {
+        const v = new HyperPoint(destination, this.settings.model);
+        this.vertices[index] = v;
+        this.maps[index] = HyperIsometry.pointInversion(v);
+        this.redraw();
+    }
+
+    redraw() {
+        this.inProgressN = 0;
+        this.inProgressGeodesics = [];
+        this.arcPreimages = [];
+        this.results.reset();
         this.updateTable();
     }
 
     private updateTable(): void {
-        this.table = new HyperbolicPolygon(this.gl, new HyperbolicPolygonSpec(
-            this.vertices,
-            Color.CRIMSON,
-            Color.ONYX,
-        ));
+        const n = this.vertices.length;
+        const geodesics = [];
+        for (let i = 0; i < n; i++) {
+            geodesics.push(new HyperGeodesic(this.vertices[i], this.vertices[(i + 1) % n]));
+        }
+        this.table = new HyperPolygon(geodesics);
         this.startRegions = [];
         this.imageRegions = [];
-        for (let i = 0; i < this.vertices.length; i++) {
+        for (let i = 0; i < n; i++) {
             // Vertices are arranged in an anti-clockwise manner.
-            const v0 = this.vertices[(i - 1 + this.vertices.length) % this.vertices.length];
+            const v0 = this.vertices[(i - 1 + n) % n];
             const v1 = this.vertices[i];
-            const v2 = this.vertices[(i + 1) % this.vertices.length];
+            const v2 = this.vertices[(i + 1) % n];
             //       /\
             //  / \ /  \
             // c   1    |
             // \  / \   c
             //   2   0  |
             //        \/
-            const g1 = new HyperbolicGeodesic(v0, v1);
-            const g2 = new HyperbolicGeodesic(v1, v2);
-            const c = g1.ideal1.plus(g2.ideal1).normalize();
-            const segments = [
-                fromThreePoints(g1.ideal1, c, g2.ideal1),
-                g2.leftTail(),
-                g1.centralSegment(),
-                g1.leftTail(),
+            const g1 = new HyperGeodesic(v0, v1);
+            const g2 = new HyperGeodesic(v1, v2);
+            const h1 = g1.ip.klein.argument();
+            const h2 = g2.ip.klein.argument();
+            const c = Complex.polar(1, (h1 + normalizeAngle(h2, h1)) / 2);
+            const edges = [
+                new IdealArc(g1.ip, HyperPoint.fromKlein(c), g2.ip),
+                g2.pTail,
+                new HyperGeodesic(v1, v0),
+                new HyperGeodesic(v0, g1.ip),
             ];
 
-            const r = new ArcRegion(segments);
+            const r = new HyperPolygon(edges);
             this.startRegions.push(r);
-            this.imageRegions.push(this.mapRegion(r))
+            this.imageRegions.push(this.mapRegion(r));
         }
         this.findAllOrbits();
     }
@@ -82,12 +122,12 @@ export class HyperbolicOuterBilliards {
     findAllOrbits() {
         this.orbits = [];
         let words: number[][] = [];
-        let maps: Mobius[] = [];
-        let ranges: ArcRegion[] = [];
+        let maps: HyperIsometry[] = [];
+        let ranges: HyperPolygon[] = [];
         const n = this.vertices.length;
         for (let i = 0; i < n; i++) {
             words.push([i]);
-            maps.push(this.mobii[i]);
+            maps.push(this.maps[i]);
             ranges.push(this.imageRegions[i]);
         }
         for (let len = 2; len < MAX_ORBIT_SEARCH_ITERATIONS; len ++) {
@@ -96,35 +136,30 @@ export class HyperbolicOuterBilliards {
             const newRanges = [];
             for (let i = 0; i < words.length; i++) {
                 for (let j = 0; j < n; j++) {
-                    if (j !== words[i][words[i].length - 1]) {
-                        const newWord = words[i].concat(j);
-                        const newMap = this.mobii[j].compose(maps[i]);
-                        let newRange;
-                        try {
-                            console.log(ranges[i], this.startRegions[j]);
-                            newRange = transformRegion(ranges[i].convexIntersect(this.startRegions[j]), this.mobii[j]);
-                        } catch (e) {
-                            console.log(`Trimming a substring: [${newWord.join(', ')}]`);
-                            continue;
-                        }
-                        newWords.push(newWord);
-                        newMaps.push(newMap);
-                        newRanges.push(newRange);
+                    if (j === words[i][words[i].length - 1]) continue;
+                    const newWord = words[i].concat(j);
+                    const newMap = this.maps[j].compose(maps[i]);
+                    const intersection = ranges[i].convexIntersect(this.startRegions[j]);
+                    if (intersection === undefined) {
+                        console.log(`Trimming a substring: [${newWord.join(', ')}]`);
+                        continue;
                     }
+                    const newRange = transformRegion(intersection, this.maps[j]);
+                    newWords.push(newWord);
+                    newMaps.push(newMap);
+                    newRanges.push(newRange);
                 }
             }
             words = newWords;
             maps = newMaps;
             ranges = newRanges;
-            console.log(`Found ${words.length} words of length ${len}.`);
-            console.log(newWords);
-            for (let word of words) {
+            // console.log(`Found ${words.length} words of length ${len}.`);
+            // console.log(newWords);
+            for (let i = 0; i < words.length; i++) {
+                const word = words[i];
                 if (word[0] === word[word.length - 1]) continue;
-                let m = Mobius.IDENTITY;
-                for (let l of word) {
-                    m = this.mobii[l].compose(m);
-                }
-                const f = m.fixedPoints().find(value => value.modulusSquared() < 1);
+                const map = maps[i];
+                const f = map.fixedPoints().find(value => !closeEnough(value.klein.modulusSquared(), 1));
                 if (!f) {
                     console.warn('Map has no interior fixed point. This is unexpected.');
                     continue;
@@ -135,74 +170,91 @@ export class HyperbolicOuterBilliards {
                     if (l !== this.forwardMapIndex(p)) {
                         break;
                     }
-                    p = this.mobii[l].apply(p);
+                    p = this.maps[l].apply(p);
                     points.push(p);
                 }
                 if (points.length === word.length) {
-                    console.log(`Found a periodic orbit of length ${len}.`);
-                    this.orbits.push({word, points});
+                    this.addOrbit({word, points, map});
                 }
             }
         }
     }
 
-    moveVertex(index: number, destination: Complex): void {
-        this.inProgressN = 0;
-        this.inProgressSegments = [];
-        this.arcPreimages = [];
-        this.vertices[index] = destination;
-        this.mobii[index] = Mobius.pointInversion(destination);
-        this.updateTable();
+    private addOrbit(orbit: Orbit): void {
+        // Check if orbit is new
+        for (let other of this.orbits) {
+            if (orbit.points.length % other.points.length !== 0) continue;
+            for (let p of orbit.points) {
+                for (let op of other.points) {
+                    if (p.equals(op)) return;
+                }
+            }
+        }
+
+        console.log(`Found a periodic orbit of length ${orbit.points.length} and rotation angle ${orbit.map.rotation() / Math.PI}π`);
+        this.orbits.push(orbit);
+        this.results.orbit = true;
+        this.results.orbitLength = orbit.word.length;
+        this.results.orbitMapRotation = orbit.map.rotation();
     }
 
-    forwardMapIndex(z: Complex): number {
+    forwardMapIndex(p: HyperPoint): number {
         for (let i = 0; i < this.startRegions.length; i++) {
-            if (this.startRegions[i].containsPoint(z)) return i;
+            if (this.startRegions[i].containsPoint(p)) return i;
         }
         return -1;
     }
 
-    forwardMap(z: Complex): Mobius {
+    forwardMap(p: HyperPoint): HyperIsometry {
         for (let i = 0; i < this.startRegions.length; i++) {
-            if (this.startRegions[i].containsPoint(z)) return this.mobii[i];
+            if (this.startRegions[i].containsPoint(p)) return this.maps[i];
         }
         throw Error('No forward transformation');
     }
 
-    inverseMap(z: Complex): Mobius {
+    inverseMap(p: HyperPoint): HyperIsometry {
         for (let i = 0; i < this.imageRegions.length; i++) {
-            if (this.imageRegions[i].containsPoint(z)) return this.mobii[i];
+            if (this.imageRegions[i].containsPoint(p)) return this.maps[i];
         }
         throw Error('No inverse transformation');
     }
 
-    mapRegion(r: ArcRegion): ArcRegion {
-        const t = this.forwardMap(r.interiorPoint());
-        return transformRegion(r, t);
+    mapRegion(poly: HyperPolygon): HyperPolygon {
+        const t = this.forwardMap(poly.interiorPoint());
+        return transformRegion(poly, t);
     }
 
     iteratePreimages(n: number, millis: number): void {
-        if (this.inProgressSegments.length === 0) {
-            this.inProgressSegments = this.table.geodesics.map(g => g.leftTail());
-            // this.inProgressSegments = [this.table.geodesics[1].leftTail()];
+        if (this.inProgressGeodesics.length === 0) {
+            this.inProgressGeodesics = this.table.geodesics.map(g => g.pTail);
+            // this.inProgressGeodesics = [this.table.geodesics[0].pTail];
         }
         while (this.inProgressN < n) {
-            this.arcPreimages.push(MultiArc.fromSegmentList(this.gl, this.inProgressSegments, Color.ONYX));
+            const segments = this.inProgressGeodesics
+                .filter(g => {
+                    const d1 = g.start.resolve(this.settings.model).distance(g.mid.resolve(this.settings.model));
+                    const d2 = g.end.resolve(this.settings.model).distance(g.mid.resolve(this.settings.model));
+                    return d1 + d2 > 0.000_001;
+                }).map(g => g.segment(this.settings.model));
+            this.arcPreimages.push(MultiArc.fromSegmentList(this.gl, segments, Color.ONYX));
             try {
-                this.inProgressSegments = this.inProgressSegments.flatMap(s => {
-                    let splitPoints: Complex[] = [];
+                this.inProgressGeodesics = this.inProgressGeodesics.flatMap(s => {
+                    const splitPoints: HyperPoint[] = [];
                     for (let g of this.table.geodesics) {
-                        splitPoints = splitPoints.concat(s.intersect(g.rightTail()));
+                        const intersection = s.intersect(g.qTail);
+                        if (intersection) {
+                            splitPoints.push(intersection);
+                        }
                     }
                     const r = [];
                     // Get rid of degenerate segments
-                    const segments = s.split(splitPoints).filter(s => !s.start.equals(s.end));
-                    for (let p of segments) {
+                    const segments = s.split(splitPoints).filter(seg => !seg.start.equals(seg.end));
+                    for (let g of segments) {
                         try {
-                            const m = this.inverseMap(p.mid);
-                            r.push(transformSegment(p, m));
+                            const m = this.inverseMap(g.mid);
+                            r.push(transformSegment(g, m) as HyperGeodesic);
                         } catch (e) {
-                            console.log(`One-off failure in step ${this.inProgressN+1} with error ${e}`);
+                            // console.log(`One-off failure in step ${this.inProgressN+1} with error ${e}`);
                         }
                     }
                     return r;
@@ -229,11 +281,17 @@ export class HyperbolicOuterBilliards {
 
         // Poincaré disk model
         scene.set('disk', new Disk(this.gl!, new DiskSpec(new Complex(), 1, Color.BLUSH, Color.BLACK)));
-        scene.set('table', this.table);
+        scene.set('table', this.table.polygon(this.settings.model, this.gl, Color.CRIMSON, Color.ONYX));
         this.iteratePreimages(n, Date.now());
-        // scene.set(`region_1`, Polygon2D.fromArcRegion(this.gl, this.imageRegions[0], undefined, Color.ONYX));
-        // scene.set(`region_2`, Polygon2D.fromArcRegion(this.gl, this.startRegions[1], undefined, Color.ONYX));
-        // scene.set(`region_3`, Polygon2D.fromArcRegion(this.gl, this.startRegions[2], Color.MAGENTA, Color.ONYX));
+        // scene.set(`slice_p1`, Path.fromSegment(this.gl, this.table.geodesics[0].pTail.segment(this.settings.model), Color.RED));
+        // scene.set(`slice_p2`, Path.fromSegment(this.gl, this.table.geodesics[1].pTail.segment(this.settings.model), Color.RED));
+        // scene.set(`slice_p3`, Path.fromSegment(this.gl, this.table.geodesics[2].pTail.segment(this.settings.model), Color.RED));
+        // scene.set(`slice_q1`, Path.fromSegment(this.gl, this.table.geodesics[0].qTail.segment(this.settings.model), Color.GREEN));
+        // scene.set(`slice_q2`, Path.fromSegment(this.gl, this.table.geodesics[1].qTail.segment(this.settings.model), Color.GREEN));
+        // scene.set(`slice_q3`, Path.fromSegment(this.gl, this.table.geodesics[2].qTail.segment(this.settings.model), Color.GREEN));
+        // scene.set(`region_1`, this.imageRegions[0].polygon(this.settings.model, this.gl, Color.MANGO, Color.ONYX));
+        // scene.set(`region_2`, this.startRegions[2].polygon(this.settings.model, this.gl, Color.MAGENTA, Color.ONYX));
+        // scene.set(`region_3`, this.imageRegions[2].polygon(this.settings.model, this.gl, Color.MANGO, Color.ONYX));
         // try {
         //     scene.set(`region_intersect`, this.intersect!);
         // } catch (e) {}
@@ -245,7 +303,7 @@ export class HyperbolicOuterBilliards {
             for (let i = 0; i < orbit.points.length; i++) {
                 scene.set(`orbit_${orbit.word.join('')}_${i+1}`,
                     new Disk(this.gl,
-                        new DiskSpec(orbit.points[i], 0.005, Color.RED, Color.ONYX)));
+                        new DiskSpec(orbit.points[i].resolve(this.settings.model), 0.005, Color.RED, Color.ONYX)));
             }
         }
     }
@@ -257,7 +315,7 @@ export class VertexHandle extends Selectable {
                 private readonly hob: HyperbolicOuterBilliards,
                 private readonly scene: Scene,
                 private readonly pixelToWorld: Function) {
-        super(new Disk(gl, new DiskSpec(hob.vertices[index], 0.05, Color.RED, undefined)),
+        super(new Disk(gl, new DiskSpec(hob.vertices[index].resolve(hob.settings.model), 0.05, Color.RED, undefined)),
             (_x: number, _y: number, _: VertexHandle) => {},
             (x: number, y: number, ths: VertexHandle) => {
             const p = pixelToWorld(x, y);
@@ -269,39 +327,14 @@ export class VertexHandle extends Selectable {
     }
 }
 
-function transformRegion(r: ArcRegion, t: Mobius): ArcRegion {
-    return new ArcRegion(r.segments.map(s => transformSegment(s, t)));
+function transformRegion(poly: HyperPolygon, t: HyperIsometry): HyperPolygon {
+    const edges = poly.edges.map(e => transformSegment(e, t));
+    return new HyperPolygon(edges);
 }
 
-function transformSegment(s: Segment, t: Mobius): Segment {
-    return fromThreePoints(t.apply(s.start), t.apply(s.mid), t.apply(s.end));
-}
-
-function fromThreePoints(p1: Complex, p2: Complex, p3: Complex): Segment {
-    if (p1.isInfinite() || p2.isInfinite() || p3.isInfinite()) throw Error('Infinite segment');
-    if (p1.equals(p2) || p2.equals(p3) || p3.equals(p1)) throw Error('Degenerate segment');
-
-    const d1 = p1.minus(p2);
-    const d2 = p2.minus(p3);
-    const det = d1.x * d2.y - d1.y * d2.y;
-
-    if (det === 0) return new LineSegment(p1, p3);
-
-    const c = Circle.fromThreePoints(p1, p2, p3);
-    const a1 = c.center.heading(p1);
-    const a2 = normalizeAngle(c.center.heading(p2), a1);
-    const a3 = normalizeAngle(c.center.heading(p3), a1);
-
-    let start: number;
-    let end: number;
-    if (a2 < a3) {
-        start = a1;
-        end = a3;
-    } else {
-        start = a3;
-        end = a1;
-    }
-    return new ArcSegment(c.center, c.radius, start, normalizeAngle(end, start));
+function transformSegment(s: HyperSegment, t: HyperIsometry): HyperSegment {
+    if (s instanceof HyperGeodesic) return new HyperGeodesic(t.apply(s.start), t.apply(s.end));
+    else return new IdealArc(t.apply(s.start), t.apply(s.mid), t.apply(s.end));
 }
 
 // function angle(g1: HyperbolicGeodesic, g2: HyperbolicGeodesic): number {

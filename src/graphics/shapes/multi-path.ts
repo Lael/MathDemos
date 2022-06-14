@@ -3,7 +3,7 @@ import {Complex} from "../../math/complex";
 import {Color} from "./color";
 import {Shape2D, Vertex2D} from "./shape2D";
 import {Arc, ArcSpec} from "./arc";
-import {Arc as ArcSegment} from "../../math/geometry/arc";
+import {ArcSegment as ArcSegment} from "../../math/geometry/arc-segment";
 import {Segment} from "../../math/geometry/segment";
 import {LineSegment} from "../../math/geometry/line-segment";
 

@@ -4,7 +4,7 @@ import {Color} from "./color";
 import {Shape2D, Vertex2D} from "./shape2D";
 import {HyperbolicGeodesic} from "../../math/hyperbolic/hyperbolic-geodesic";
 import {Arc as ArcShape, Arc, ArcSpec} from "./arc";
-import {Arc as ArcSegment} from "../../math/geometry/arc";
+import {ArcSegment as ArcSegment} from "../../math/geometry/arc-segment";
 import {Segment} from "../../math/geometry/segment";
 import {LineSegment} from "../../math/geometry/line-segment";
 

@@ -4,7 +4,7 @@ import {Circle} from "./circle";
 import {closeEnough, normalizeAngle} from "../math-helpers";
 import {LineSegment} from "./line-segment";
 
-export class Arc extends Segment {
+export class ArcSegment extends Segment {
     readonly circle: Circle;
     readonly startAngle: number;
     readonly endAngle: number;
@@ -35,11 +35,11 @@ export class Arc extends Segment {
 
     override intersect(other: Segment): Complex[] {
         if (other instanceof LineSegment) return other.intersect(this);
-        if (other instanceof Arc) return this.intersectArc(other);
+        if (other instanceof ArcSegment) return this.intersectArc(other);
         throw Error('Unknown segment type');
     }
 
-    private intersectArc(other: Arc): Complex[] {
+    private intersectArc(other: ArcSegment): Complex[] {
         const candidates = this.circle.intersectCircle(other.circle);
         return candidates.filter(candidate => this.containsPoint(candidate) && other.containsPoint(candidate));
     }
@@ -49,7 +49,7 @@ export class Arc extends Segment {
         // const aMatch = theta <= this.endAngle;
         // const rMatch = closeEnough(this.center.distance(p), this.radius);
         // return aMatch && rMatch;
-        return (normalizeAngle(this.center.heading(p), this.startAngle) < this.endAngle) && closeEnough(this.center.distance(p), this.radius);
+        return (normalizeAngle(this.center.heading(p), this.startAngle) <= this.endAngle) && closeEnough(this.center.distance(p), this.radius);
     }
 
     override startHeading(): number {
@@ -93,7 +93,7 @@ export class Arc extends Segment {
             const a = headings[i];
             const b = headings[i + 1];
             if (a === b) continue;
-            pieces.push(new Arc(this.center, this.radius, a, b));
+            pieces.push(new ArcSegment(this.center, this.radius, a, b));
         }
         return pieces;
     }

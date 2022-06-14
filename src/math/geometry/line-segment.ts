@@ -1,7 +1,7 @@
 import {Segment} from "./segment";
 import {Complex} from "../complex";
 import {Line} from "./line";
-import {Arc} from "./arc";
+import {ArcSegment} from "./arc-segment";
 import {closeEnough, normalizeAngle} from "../math-helpers";
 
 export class LineSegment extends Segment {
@@ -31,23 +31,27 @@ export class LineSegment extends Segment {
 
     override intersect(other: Segment): Complex[] {
         if (other instanceof LineSegment) return this.intersectLineSegment(other);
-        if (other instanceof Arc) return this.intersectArc(other);
+        if (other instanceof ArcSegment) return this.intersectArc(other);
         throw Error('Unknown segment type');
     }
 
     private intersectLineSegment(other: LineSegment): Complex[] {
-        const candidate = this.line.intersectLine(other.line);
-        if (this.containsPoint(candidate) && other.containsPoint(candidate)) return [candidate];
+        try {
+            const candidate = this.line.intersectLine(other.line);
+            if (this.containsPoint(candidate) && other.containsPoint(candidate)) return [candidate];
+        } catch (e) {
+            return [];
+        }
         return [];
     }
 
-    private intersectArc(other: Arc): Complex[] {
+    private intersectArc(other: ArcSegment): Complex[] {
         const candidates = other.circle.intersectLine(this.line);
         return candidates.filter(candidate => this.containsPoint(candidate) && other.containsPoint(candidate));
     }
 
     override containsPoint(p: Complex): boolean {
-        return closeEnough(this.p1.distance(p) + this.p2.distance(p), length);
+        return closeEnough(this.p1.distance(p) + this.p2.distance(p), this.length);
     }
 
     override startHeading(): number {
@@ -85,6 +89,7 @@ export class LineSegment extends Segment {
         for (let i = 0; i < pts.length - 1; i++) {
             const a = pts[i];
             const b = pts[i + 1];
+            if (a.equals(b)) continue;
             pieces.push(new LineSegment(a, b));
         }
         return pieces;

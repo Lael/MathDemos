@@ -3,6 +3,52 @@
   flex-direction: column
   align-items: center
   justify-items: center
+  overflow-x: scroll
+
+.contents
+  display: flex
+  flex-direction: row
+  align-items: flex-start
+  justify-items: flex-start
+
+.column
+  display: flex
+  flex-direction: column
+
+.settings
+  width: 500px
+  background-color: #75B9BE
+  color: white
+  margin: 0 10px 0 10px
+  display: flex
+  flex-direction: column
+  padding: 10px
+
+  .radio
+    margin-right: 10px
+
+.setting
+  display: flex
+  flex-direction: row
+  width: 100%
+  margin-bottom: 10px
+
+  :nth-child(2)
+    flex-grow: 1
+
+.setting-label
+  margin-right: 10px
+
+.output
+  width: 500px
+  background-color: #75B9BE
+  color: white
+
+  margin: 10px 10px 0 10px
+  display: flex
+  flex-direction: column
+  padding: 10px
+
 
 .billiards-canvas
   width: 800px

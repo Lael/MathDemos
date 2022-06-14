@@ -1,9 +1,56 @@
 <div class="container">
     <h2>Hyperbolic Outer Billiards</h2>
-    <canvas id="billiards-canvas"
-            class="billiards-canvas"
-            (mousedown)="onMouseDown($event)"
-            (mousemove)="onMouseMove($event)"
-            (mouseup)="onMouseUp($event)"
-    ></canvas>
+    <div class="contents">
+        <div class="column">
+            <div class="settings">
+                <h3>Settings</h3>
+                <div class="setting">
+                    <span class="setting-label">Model:</span>
+                    <mat-radio-group [(ngModel)]="settings.model" (change)="updateSettings()">
+                        <mat-radio-button class="radio" [value]="model.POINCARE">
+                            Poincaré
+                        </mat-radio-button>
+                        <mat-radio-button class="radio" [value]="model.KLEIN">
+                            Klein
+                        </mat-radio-button>
+                    </mat-radio-group>
+                </div>
+                <!--            Slider for equilateral triangles-->
+                <div class="setting">
+                    <span class="setting-label">Radius:</span>
+                    <mat-slider min="0.01"
+                                max="0.3"
+                                step="0.00001"
+                                [(ngModel)]="settings.equilateralRadius"
+                                (change)="equilateral()"
+                    ></mat-slider>
+                </div>
+            </div>
+
+            <div class="output">
+                <h3>Output</h3>
+                <div class="result">
+                    <span class="result-label">Orbit: </span>
+                    <span class="result-value">{{orbitText()}}</span>
+                </div>
+
+                <div class="result">
+                    <span class="result-label">Orbit length: </span>
+                    <span class="result-value">{{orbitLengthText()}}</span>
+                </div>
+
+
+                <div class="result">
+                    <span class="result-label">Orbit rotation angle: </span>
+                    <span class="result-value">{{orbitAngleText()}}</span>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="billiards-canvas"
+                class="billiards-canvas"
+                (mousedown)="onMouseDown($event)"
+                (mousemove)="onMouseMove($event)"
+                (mouseup)="onMouseUp($event)"></canvas>
+    </div>
 </div>

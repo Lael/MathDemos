@@ -2,8 +2,14 @@ import { Component, AfterViewInit } from '@angular/core';
 import { Shader } from '../../../graphics/gl/shader';
 import {MathDemo} from "../math-demo";
 import { Scene } from "../../../graphics/scene";
-import {HyperbolicOuterBilliards, VertexHandle} from '../../../math/hyperbolic/hyperbolic-outer-billiards';
+import {
+  HyperbolicOuterBilliards,
+  HyperbolicOuterBilliardsResults,
+  HyperbolicOuterBilliardsSettings,
+  VertexHandle
+} from '../../../math/hyperbolic/hyperbolic-outer-billiards';
 import {Camera2D} from "../../../graphics/camera/camera2D";
+import {HyperbolicModel} from "../../../math/hyperbolic/hyperbolic";
 
 @Component({
   selector: 'app-billiards-demo',
@@ -11,7 +17,10 @@ import {Camera2D} from "../../../graphics/camera/camera2D";
   styleUrls: ['./billiards-demo.component.sass']
 })
 export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
-  private hob!: HyperbolicOuterBilliards;
+  settings = new HyperbolicOuterBilliardsSettings();
+  results = new HyperbolicOuterBilliardsResults();
+  hob!: HyperbolicOuterBilliards;
+  model = HyperbolicModel;
 
   constructor() {
     super();
@@ -33,7 +42,7 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
     const scene = new Scene();
     const camera = new Camera2D();
     camera.setZoom(Math.sqrt(2) / 0.9);
-    this.hob = new HyperbolicOuterBilliards(gl);
+    this.hob = new HyperbolicOuterBilliards(gl, this.settings, this.results);
 
     this.gl = gl;
     this.scene = scene;
@@ -51,6 +60,10 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
     for (let i = 0; i < this.hob.vertices.length; i++) {
       this.addSelectable(`vertex_handle_${i + 1}`, new VertexHandle(this.gl, i, this.hob, this.scene, this.viewportToWorld.bind(this)));
     }
+  }
+
+  protected override frame(dt: number): void {
+    this.hob.populateScene(this.scene!);
   }
 
   onMouseDown(e: MouseEvent) {
@@ -74,7 +87,30 @@ export class BilliardsDemoComponent extends MathDemo implements AfterViewInit {
     this.mouseUp(x, y);
   }
 
-  protected override frame(dt: number): void {
-    this.hob.populateScene(this.scene!);
+  updateSettings() {
+    this.hob?.redraw();
+    this.selectables.clear();
+    for (let i = 0; i < this.hob.vertices.length; i++) {
+      this.addSelectable(`vertex_handle_${i + 1}`, new VertexHandle(this.gl, i, this.hob, this.scene, this.viewportToWorld.bind(this)));
+    }
+  }
+
+  equilateral() {
+    this.hob?.equilateral();
+    this.updateSettings();
+  }
+
+
+  orbitText() {
+    return this.results.orbit ? 'Yes' : 'No';
+  }
+
+  orbitLengthText() {
+    return this.results.orbit ? `${this.results.orbitLength}` : '';
+  }
+
+  orbitAngleText() {
+    const a = this.results.orbitMapRotation / Math.PI;
+    return this.results.orbit ? `${a}π` : '';
   }
 }
