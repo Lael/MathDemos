@@ -4,7 +4,7 @@ import {HyperbolicGeodesic} from "./hyperbolic/hyperbolic-geodesic";
 import {solveQuadratic} from "./math-helpers";
 
 export class Mobius extends Transformation {
-    static readonly IDENTITY = new Mobius(new Complex(1, 0), new Complex(), new Complex(), new Complex(1, 0));
+    static readonly IDENTITY = new Mobius(Complex.ONE, Complex.ZERO, Complex.ZERO, Complex.ONE);
 
     private readonly a: Complex;
     private readonly b: Complex;
@@ -56,7 +56,7 @@ export class Mobius extends Transformation {
         if (z1.equals(z2) || z2.equals(z3) || z3.equals(z1)) throw Error('Degenerate Möbius transformation');
         if (z1.isInfinite()) {
             return new Mobius(
-                new Complex(),
+                Complex.ZERO,
                 z3.minus(z2),
                 new Complex(-1, 0),
                 z3
@@ -64,9 +64,9 @@ export class Mobius extends Transformation {
         }
         if (z2.isInfinite()) {
             return new Mobius(
-                new Complex(1, 0),
+                Complex.ONE,
                 z1.scale(-1),
-                new Complex(1, 0),
+                Complex.ONE,
                 z3.scale(-1)
             );
         }
@@ -74,7 +74,7 @@ export class Mobius extends Transformation {
             return new Mobius(
                 new Complex(-1, 0),
                 z1,
-                new Complex(),
+                Complex.ZERO,
                 z1.minus(z2)
             );
         }
@@ -94,8 +94,8 @@ export class Mobius extends Transformation {
 
     static pointInversion(p: Complex): Mobius {
         if (p.modulusSquared() >= 1) throw Error('Non-interior point inversion');
-        if (p.isZero()) return new Mobius(new Complex(-1), new Complex(), new Complex(), new Complex(1));
-        const g = new HyperbolicGeodesic(new Complex(), p);
+        if (p.isZero()) return new Mobius(new Complex(-1), Complex.ZERO, Complex.ZERO, Complex.ONE);
+        const g = new HyperbolicGeodesic(Complex.ZERO, p);
         return this.mapThree(
             p, g.ideal1, g.ideal2,
             p, g.ideal2, g.ideal1
@@ -111,5 +111,9 @@ export class Mobius extends Transformation {
             && this.b.equals(other.b)
             && this.c.equals(other.c)
             && this.d.equals(other.d);
+    }
+
+    static rotation(r: number): Mobius {
+        return new Mobius(Complex.polar(1, r), Complex.ZERO, Complex.ZERO, Complex.ONE);
     }
 }

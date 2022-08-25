@@ -1,5 +1,11 @@
 import {Matrix4, Vector2, Vector3, Vector4} from "three";
 
+export interface ShaderSpec {
+    name: string;
+    vertPath: string;
+    fragPath: string;
+}
+
 export class Shader {
     private readonly vert: WebGLShader;
     private readonly frag: WebGLShader;

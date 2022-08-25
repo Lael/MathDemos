@@ -1,4 +1,4 @@
-import {Drawable2D} from "./drawable2D";
+import {Drawable} from "./drawable";
 import {Complex} from "../../math/complex";
 import {Color} from "./color";
 import {Shape2D, Vertex2D} from "./shape2D";
@@ -7,7 +7,7 @@ import {ArcSegment as ArcSegment} from "../../math/geometry/arc-segment";
 import {Segment} from "../../math/geometry/segment";
 import {LineSegment} from "../../math/geometry/line-segment";
 
-export class MultiArc extends Drawable2D {
+export class MultiArc extends Drawable {
     constructor(gl: WebGL2RenderingContext, spec: MultiArcSpec) {
         const vertices: Vertex2D[] = [];
         let lastVertex: Complex|null = null;

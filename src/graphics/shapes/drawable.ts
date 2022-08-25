@@ -1,10 +1,10 @@
-import {Shape2D} from "./shape2D";
-import {Matrix4} from "three";
+import {Shape} from "./shape";
+import {Matrix4, Vector3} from "three";
 import {Shader} from "../gl/shader";
 
-export class Drawable2D {
+export class Drawable {
     protected model: Matrix4 = new Matrix4();
-    constructor(readonly shapes: Shape2D[]) {}
+    constructor(readonly shapes: Shape[]) {}
 
     draw(shader: Shader) {
         for (let shape of this.shapes) {
@@ -15,5 +15,9 @@ export class Drawable2D {
 
     recenter(x: number, y: number, z: number) {
         this.model.setPosition(x, y, z);
+    }
+
+    scale(r: number) {
+        this.model.scale(new Vector3(r, r, r));
     }
 }

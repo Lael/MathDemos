@@ -21,30 +21,30 @@ describe('Hyperbolic Geometry', () => {
         });
 
         it('converts poincare to half plane', () => {
-            expect(poincareToHalfPlane(new Complex()).equals(new Complex(0, 1))).toBeTrue();
-            expect(poincareToHalfPlane(new Complex(0, -1)).equals(new Complex())).toBeTrue();
-            expect(poincareToHalfPlane(new Complex(1, 0)).equals(new Complex(1, 0))).toBeTrue();
+            expect(poincareToHalfPlane(Complex.ZERO).equals(new Complex(0, 1))).toBeTrue();
+            expect(poincareToHalfPlane(new Complex(0, -1)).equals(Complex.ZERO)).toBeTrue();
+            expect(poincareToHalfPlane(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(poincareToHalfPlane(new Complex(0, 1)).isInfinite()).toBeTrue();
         });
 
         it('converts half plane to poincare', () => {
-            expect(halfPlaneToPoincare(new Complex(0, 1)).equals(new Complex())).toBeTrue();
-            expect(halfPlaneToPoincare(new Complex()).equals(new Complex(0, -1))).toBeTrue();
-            expect(halfPlaneToPoincare(new Complex(1, 0)).equals(new Complex(1, 0))).toBeTrue();
+            expect(halfPlaneToPoincare(new Complex(0, 1)).equals(Complex.ZERO)).toBeTrue();
+            expect(halfPlaneToPoincare(Complex.ZERO).equals(new Complex(0, -1))).toBeTrue();
+            expect(halfPlaneToPoincare(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(halfPlaneToPoincare(Complex.INFINITY).equals(new Complex(0, 1))).toBeTrue();
         });
 
         it('converts klein to half plane', () => {
-            expect(kleinToHalfPlane(new Complex()).equals(new Complex(0, 1))).toBeTrue();
-            expect(kleinToHalfPlane(new Complex(0, -1)).equals(new Complex())).toBeTrue();
-            expect(kleinToHalfPlane(new Complex(1, 0)).equals(new Complex(1, 0))).toBeTrue();
+            expect(kleinToHalfPlane(Complex.ZERO).equals(new Complex(0, 1))).toBeTrue();
+            expect(kleinToHalfPlane(new Complex(0, -1)).equals(Complex.ZERO)).toBeTrue();
+            expect(kleinToHalfPlane(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(kleinToHalfPlane(new Complex(0, 1)).isInfinite()).toBeTrue();
         });
 
         it('converts half plane to klein', () => {
-            expect(halfPlaneToKlein(new Complex(0, 1)).equals(new Complex())).toBeTrue();
-            expect(halfPlaneToKlein(new Complex()).equals(new Complex(0, -1))).toBeTrue();
-            expect(halfPlaneToKlein(new Complex(1, 0)).equals(new Complex(1, 0))).toBeTrue();
+            expect(halfPlaneToKlein(new Complex(0, 1)).equals(Complex.ZERO)).toBeTrue();
+            expect(halfPlaneToKlein(Complex.ZERO).equals(new Complex(0, -1))).toBeTrue();
+            expect(halfPlaneToKlein(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(halfPlaneToKlein(Complex.INFINITY).equals(new Complex(0, 1))).toBeTrue();
         });
     });
@@ -113,7 +113,7 @@ describe('Hyperbolic Geometry', () => {
 
     describe('HyperGeodesic', () => {
         it('computes winding number', () => {
-            const p0 = HyperPoint.fromKlein(new Complex());
+            const p0 = HyperPoint.fromKlein(Complex.ZERO);
             const p1 = HyperPoint.fromKlein(new Complex(0.5, 0.5));
             const p2 = HyperPoint.fromKlein(new Complex(-0.5, 0.5));
             const p3 = HyperPoint.fromKlein(new Complex(0, 1));
@@ -126,19 +126,19 @@ describe('Hyperbolic Geometry', () => {
     describe('IdealArc', () => {
         it('computes winding number anti-clockwise small', () => {
             const arc = new IdealArc(
-                HyperPoint.fromPoincare(new Complex(1, 0)),
+                HyperPoint.fromPoincare(Complex.ONE),
                 HyperPoint.fromPoincare(new Complex(1, 1).normalize()),
                 HyperPoint.fromPoincare(new Complex(0, 1)));
-            expect(arc.wind(HyperPoint.fromKlein(new Complex()))).toEqual(Math.PI / 2);
+            expect(arc.wind(HyperPoint.fromKlein(Complex.ZERO))).toEqual(Math.PI / 2);
             expect(arc.wind(HyperPoint.fromKlein(new Complex(0.5, 0.5)))).toEqual(Math.PI);
         });
 
         it('computes winding number anti-clockwise large', () => {
             const arc = new IdealArc(
-                HyperPoint.fromPoincare(new Complex(1, 0)),
+                HyperPoint.fromPoincare(Complex.ONE),
                 HyperPoint.fromPoincare(new Complex(-1, 1).normalize()),
                 HyperPoint.fromPoincare(new Complex(0, -1)));
-            expect(arc.wind(HyperPoint.fromKlein(new Complex()))).toEqual(3 * Math.PI / 2);
+            expect(arc.wind(HyperPoint.fromKlein(Complex.ZERO))).toEqual(3 * Math.PI / 2);
             expect(arc.wind(HyperPoint.fromKlein(new Complex(0.5, -0.5)))).toEqual(Math.PI);
         });
 
@@ -146,8 +146,8 @@ describe('Hyperbolic Geometry', () => {
             const arc = new IdealArc(
                 HyperPoint.fromPoincare(new Complex(0, 1)),
                 HyperPoint.fromPoincare(new Complex(1, 1).normalize()),
-                HyperPoint.fromPoincare(new Complex(1, 0)));
-            expect(arc.wind(HyperPoint.fromKlein(new Complex()))).toEqual(-Math.PI / 2);
+                HyperPoint.fromPoincare(Complex.ONE));
+            expect(arc.wind(HyperPoint.fromKlein(Complex.ZERO))).toEqual(-Math.PI / 2);
             expect(arc.wind(HyperPoint.fromKlein(new Complex(0.5, 0.5)))).toEqual(-Math.PI);
         });
 
@@ -155,15 +155,15 @@ describe('Hyperbolic Geometry', () => {
             const arc = new IdealArc(
                 HyperPoint.fromPoincare(new Complex(0, -1)),
                 HyperPoint.fromPoincare(new Complex(-1, 1).normalize()),
-                HyperPoint.fromPoincare(new Complex(1, 0)));
-            expect(arc.wind(HyperPoint.fromKlein(new Complex()))).toEqual(-3 * Math.PI / 2);
+                HyperPoint.fromPoincare(Complex.ONE));
+            expect(arc.wind(HyperPoint.fromKlein(Complex.ZERO))).toEqual(-3 * Math.PI / 2);
             expect(arc.wind(HyperPoint.fromKlein(new Complex(0.5, -0.5)))).toEqual(-Math.PI);
         });
     });
 
     describe('HyperPolygon', () => {
         it('computes convex intersection without ideal arcs', () => {
-            const p0 = HyperPoint.fromKlein(new Complex());
+            const p0 = HyperPoint.fromKlein(Complex.ZERO);
             const p1 = HyperPoint.fromKlein(new Complex(0.5, 0));
             const p2 = HyperPoint.fromKlein(new Complex(0.5, 0.5));
             const p3 = HyperPoint.fromKlein(new Complex(0, 0.5));
@@ -188,7 +188,7 @@ describe('Hyperbolic Geometry', () => {
         });
 
         it('computes convex intersection with ideal arcs', () => {
-            const p0 = HyperPoint.fromKlein(new Complex());
+            const p0 = HyperPoint.fromKlein(Complex.ZERO);
             const p1 = HyperPoint.fromKlein(Complex.polar(1, 0));
             const p2 = HyperPoint.fromKlein(Complex.polar(1, Math.PI / 4));
             const p3 = HyperPoint.fromKlein(Complex.polar(1, 2 * Math.PI / 4));

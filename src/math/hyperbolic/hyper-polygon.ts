@@ -1,7 +1,7 @@
 import {Polygon2D, PolygonSpec} from "../../graphics/shapes/polygon2D";
 import {Complex} from "../complex";
 import {Color} from "../../graphics/shapes/color";
-import {HyperbolicModel, HyperGeodesic, HyperPoint} from "./hyperbolic";
+import {HyperbolicModel, HyperGeodesic, HyperIsometry, HyperPoint} from "./hyperbolic";
 import {fromThreePoints} from "../geometry/geometry-helpers";
 import {closeEnough, normalizeAngle} from "../math-helpers";
 import {Segment} from "../geometry/segment";
@@ -88,6 +88,7 @@ export class IdealArc {
 export type HyperSegment = IdealArc|HyperGeodesic;
 
 export class HyperPolygon {
+    readonly vertices: HyperPoint[];
     readonly poincareVertices: Complex[];
     readonly kleinVertices: Complex[];
     // readonly halfPlaneVertices: Complex[];
@@ -107,6 +108,105 @@ export class HyperPolygon {
         this.kleinVertices = this.interpolateVertices(HyperbolicModel.KLEIN);
 
         // this.halfPlaneVertices = this.interpolateVertices(HyperbolicModel.HALF_PLANE);
+        this.vertices = [];
+        for (let i = 0; i < edges.length; i++) {
+            this.vertices.push(this.directions[i] > 0 ? edges[i].end : edges[i].start);
+        }
+    }
+
+    static fromAngles(angles: number[]): HyperPolygon {
+        if (angles.length !== 3) throw new Error('Constructing a polygon by angles is only supported for triangles.');
+        // Validate angles
+        let s = 0;
+        let v = angles.length >= 3;
+        for (let a of angles) {
+            if (a < 0 || a > Math.PI) {
+                v = false;
+                break;
+            }
+            s += a;
+        }
+        if (s > (angles.length - 2) * Math.PI) v = false;
+        if (!v) throw new Error('Invalid angle list');
+
+        const a0 = angles[0];
+        const a1 = angles[1];
+        const a2 = angles[2];
+
+        const c0 = Math.cos(a0);
+        const c1 = Math.cos(a1);
+        const c2 = Math.cos(a2);
+        const s0 = Math.sin(a0);
+        const s1 = Math.sin(a1);
+        const s2 = Math.sin(a2);
+        
+        let v0, v1, v2;
+        let center = undefined;
+
+        if (a0 === 0 && a1 === 0 && a2 === 0) {
+            // Ideal triangle
+            v0 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2));
+            v1 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2 + 2 * Math.PI / 3));
+            v2 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2 + 4 * Math.PI / 3));
+        } else if (a0 + a1 === 0 || a0 + a2 === 0 || a1 + a2 === 0) {
+            v0 = HyperPoint.fromPoincare(Complex.ZERO);
+            v1 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2));
+            v2 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2 + a0 + a1 + a2));
+        } else if (a0 === 0) {
+            const t0 = Math.acosh((c0 + c1 * c2) / (s1 * s2));
+            const l0 = HyperPoint.trueToPoincare(t0);
+            v0 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2));
+            v1 = HyperPoint.fromPoincare(Complex.polar(l0, Math.PI / 2 + a2));
+            v2 = HyperPoint.fromPoincare(Complex.ZERO);
+        } else if (a1 === 0) {
+            const t1 = Math.acosh((c1 + c2 * c0) / (s2 * s0));
+            const l1 = HyperPoint.trueToPoincare(t1);
+            v0 = HyperPoint.fromPoincare(Complex.ZERO);
+            v1 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2));
+            v2 = HyperPoint.fromPoincare(Complex.polar(l1, Math.PI / 2 + a1));
+        } else if (a2 === 0) {
+            const t2 = Math.acosh((c2 + c0 * c1) / (s0 * s1));
+            const l2 = HyperPoint.trueToPoincare(t2);
+            v0 = HyperPoint.fromPoincare(Complex.ZERO);
+            v1 = HyperPoint.fromPoincare(Complex.polar(1, Math.PI / 2));
+            v2 = HyperPoint.fromPoincare(Complex.polar(l2, Math.PI / 2 + a1));
+        } else {
+            // All angles are positive
+            const t1 = Math.acosh((c1 + c2 * c0) / (s2 * s0));
+            const t2 = Math.acosh((c2 + c0 * c1) / (s0 * s1));
+            const l1 = HyperPoint.trueToPoincare(t1);
+            const l2 = HyperPoint.trueToPoincare(t2);
+
+            const l01 = HyperPoint.trueToPoincare(t1 / 2);
+            const l02 = HyperPoint.trueToPoincare(t2 / 2);
+            const m01 = HyperPoint.fromPoincare(Complex.polar(l01, Math.PI / 2));
+            const m02 = HyperPoint.fromPoincare(Complex.polar(l02, Math.PI / 2 + a0));
+
+            v0 = HyperPoint.fromPoincare(Complex.ZERO);
+            v1 = HyperPoint.fromPoincare(Complex.polar(l1, Math.PI / 2));
+            v2 = HyperPoint.fromPoincare(Complex.polar(l2, Math.PI / 2 + a0));
+            center = new HyperGeodesic(v2, m01).intersect(new HyperGeodesic(v1, m02));
+        }
+
+        if (!center) center = HyperPoint.fromPoincare(v0.poincare.plus(v1.poincare).plus(v2.poincare).scale(1/3.0));
+        const b = HyperIsometry.blaschkeTransform(center);
+
+        v0 = b.apply(v0);
+        v1 = b.apply(v1);
+        v2 = b.apply(v2);
+
+        if (!v0.poincare.equals(Complex.ZERO)) {
+            const angle = -v0.poincare.argument();
+            const r = HyperIsometry.rotation(angle);
+            v0 = r.apply(v0);
+            v1 = r.apply(v1);
+            v2 = r.apply(v2);
+        }
+
+        return new HyperPolygon([
+            new HyperGeodesic(v0, v1),
+            new HyperGeodesic(v1, v2),
+            new HyperGeodesic(v2, v0)]);
     }
 
     private interpolateVertices(model: HyperbolicModel): Complex[] {
@@ -170,7 +270,7 @@ export class HyperPolygon {
     }
 
     interiorPoint(): HyperPoint {
-        let c = new Complex();
+        let c = Complex.ZERO;
         for (let e of this.edges) {
             c = c.plus(e.mid.klein);
         }
@@ -219,7 +319,7 @@ export class HyperPolygon {
         if (vertices.length < 2) return undefined;
 
         // Sort counterclockwise
-        let center = new Complex();
+        let center = Complex.ZERO;
         for (let v of vertices) {
             center = center.plus(v.klein);
         }
@@ -253,7 +353,11 @@ export class HyperPolygon {
         }
         if (edges.length < 3) return undefined;
 
-        return new HyperPolygon(edges);
+        try {
+            return new HyperPolygon(edges);
+        } catch (e) {
+            return undefined;
+        }
     }
 
     static fromVertices(...vertices: HyperPoint[]): HyperPolygon {

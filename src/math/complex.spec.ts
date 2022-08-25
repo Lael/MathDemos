@@ -10,7 +10,7 @@ describe('Complex', () => {
         });
 
         it('should compute argument', () => {
-            expect(function(){ (new Complex()).argument(); }).toThrowError('Zero has no argument');
+            expect(function(){ (Complex.ZERO).argument(); }).toThrowError('Zero has no argument');
             expect(new Complex(0, 1).argument()).toEqual(Math.PI / 2);
             expect(new Complex(-1, 0).argument()).toEqual(Math.PI);
         });

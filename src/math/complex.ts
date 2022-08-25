@@ -1,7 +1,9 @@
 export class Complex {
 
-    static readonly INFINITY = new Complex(Infinity, Infinity);
+    static readonly ZERO: Complex = new Complex(0, 0);
+    static readonly ONE: Complex = new Complex(1, 0);
     static readonly I = new Complex(0, 1);
+    static readonly INFINITY = new Complex(Infinity, Infinity);
 
     private arg?: number;
     private mod?: number;
@@ -68,7 +70,7 @@ export class Complex {
         return this.arg;
     }
 
-    conjugate(): Complex {
+    get conjugate(): Complex {
         return new Complex(this.real, -this.imag);
     }
 
@@ -109,8 +111,8 @@ export class Complex {
             throw Error('Indeterminate form: 0 / 0');
         }
         if (other.isZero()) return Complex.INFINITY;
-        if (other.isInfinite()) return new Complex();
-        return this.times(other.conjugate()).scale(1 / other.modulusSquared());
+        if (other.isInfinite()) return Complex.ZERO;
+        return this.times(other.conjugate).scale(1 / other.modulusSquared());
     }
 
     sqrt(): Complex {
@@ -119,7 +121,7 @@ export class Complex {
 
     pow(p: number): Complex {
         if (!isFinite(p)) throw Error('Non-finite powers are not supported');
-        if (this.isZero()) return new Complex();
+        if (this.isZero()) return Complex.ZERO;
         if (this.isInfinite()) {
             if (p === 0) throw Error('Indeterminate form: inf ^ 0');
             return Complex.INFINITY;

@@ -1,13 +1,10 @@
 import {Shape2D, Vertex2D} from "./shape2D";
 import {Color} from "./color";
-import {Drawable2D} from "./drawable2D";
+import {Drawable} from "./drawable";
 import {Complex} from "../../math/complex";
 import {ArcRegion} from "../../math/geometry/arc-region";
 
-export class Polygon2D extends Drawable2D {
-    private fill?: Shape2D;
-    private border?: Shape2D;
-
+export class Polygon2D extends Drawable {
     constructor(gl: WebGL2RenderingContext, spec: PolygonSpec) {
         const shapes: Shape2D[] = [];
         let fill: Shape2D|undefined = undefined;
@@ -21,8 +18,6 @@ export class Polygon2D extends Drawable2D {
             shapes.push(border);
         }
         super(shapes);
-        if (fill) this.fill = fill;
-        if (border) this.border = border;
     }
 
     private static fillVertices(points: Complex[], fill: Color): Vertex2D[] {

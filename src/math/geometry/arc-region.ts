@@ -168,7 +168,7 @@ export class ArcRegion {
     }
 
     interiorPoint(): Complex {
-        let m = new Complex();
+        let m = Complex.ZERO;
         for (let s of this.segments) {
             m = m.plus(s.mid);
         }

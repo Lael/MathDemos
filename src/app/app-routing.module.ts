@@ -1,11 +1,9 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import {BilliardsDemoComponent} from "./demos/billiards-demo/billiards-demo.component";
-import {HomePageComponent} from "./home-page/home-page.component";
+import {BilliardsDemoComponent} from "./demos/hyperbolic-outer-billiards/billiards-demo.component";
 
 const routes: Routes = [
-  {path: "", component: HomePageComponent},
-  {path: "hyperbolic-outer-billiards", component: BilliardsDemoComponent}
+  {path: "", component: BilliardsDemoComponent},
 ];
 
 @NgModule({

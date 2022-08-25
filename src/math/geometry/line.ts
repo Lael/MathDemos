@@ -44,7 +44,6 @@ export class Line {
              other.a * this.c - this.a * other.c,
         ).scale(1 / d);
         if (!this.containsPoint(solution) || !other.containsPoint(solution)) {
-            debugger;
             throw Error('Bad intersection');
         }
         return solution;

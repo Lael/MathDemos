@@ -5,9 +5,9 @@ export abstract class Camera {
     protected position = new Vector3(0, 0, 1);
 
     // Forward, up, & right form should be kept orthonormal.
-    protected right = new Vector3(-1, 0, 0);
-    protected up = new Vector3(0, 1, 0);
     protected forward = new Vector3(0, 0, -1);
+    protected up = new Vector3(0, 1, 0);
+    protected right= new Vector3(1, 0, 0);
 
     // Viewport width / height
     protected aspectRatio = 1.0;
@@ -17,15 +17,15 @@ export abstract class Camera {
 
     // Clip planes (orthogonal to the forward direction)
     protected near = 0.1;
-    protected far = 1.0;
+    protected far = 100;
 
     // A small optimization: cache the camera matrix
     private dirty = true;
-    private cameraMatrix: Matrix4 = new Matrix4();
+    private cameraMatrix = new Matrix4();
 
     private updateBasis(): void {
         this.right.crossVectors(this.forward, this.up);
-        this.forward.crossVectors(this.up, this.right);
+        this.up.crossVectors(this.right, this.forward);
         this.right.normalize();
         this.forward.normalize();
         this.up.normalize();
@@ -52,7 +52,7 @@ export abstract class Camera {
         this.markDirty();
     }
 
-    setAspectRation(aspectRatio: number): void {
+    setAspectRatio(aspectRatio: number): void {
         this.aspectRatio = aspectRatio;
         this.markDirty();
     }
@@ -83,4 +83,54 @@ export abstract class Camera {
     }
 
     protected abstract computeCameraMatrix(): Matrix4;
+
+    getPosition(): Vector3 {
+        return this.position.clone();
+    }
+
+    getForward(): Vector3 {
+        return this.forward.clone();
+    }
+
+    getUp(): Vector3 {
+        return this.up.clone();
+    }
+
+    getRight(): Vector3 {
+        return this.right.clone();
+    }
+
+    computeExtrinsic(): Matrix4 {
+        const rx = this.right.x;
+        const ry = this.right.y;
+        const rz = this.right.z;
+        const ux = this.up.x;
+        const uy = this.up.y;
+        const uz = this.up.z;
+        const fx = this.forward.x;
+        const fy = this.forward.y;
+        const fz = this.forward.z;
+        const px = this.position.x;
+        const py = this.position.y;
+        const pz = this.position.z;
+        const rotate = new Matrix4().set(
+            rx, ux, fx, 0,
+            ry, uy, fy, 0,
+            rz, uz, fz, 0,
+            0, 0, 0, 1
+        ).transpose();
+
+        const translate = new Matrix4().set(
+            1, 0, 0, -px,
+            0, 1, 0, -py,
+            0, 0, 1, -pz,
+            0, 0, 0, 1
+        );
+
+        return rotate.multiply(translate);
+    }
+
+    getZoom() {
+        return this.zoom;
+    }
 }

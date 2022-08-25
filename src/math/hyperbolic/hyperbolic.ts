@@ -6,8 +6,9 @@ import {Segment} from "../geometry/segment";
 import {fromThreePoints} from "../geometry/geometry-helpers";
 import {LineSegment} from "../geometry/line-segment";
 import {closeEnough, normalizeAngle} from "../math-helpers";
+import {ArcSegment} from "../geometry/arc-segment";
 
-//new Mobius(new Complex(0, 1), new Complex(-1, 0), new Complex(1, 0), new Complex(0, -1));
+//new Mobius(new Complex(0, 1), new Complex(-1, 0), Complex.ONE, new Complex(0, -1));
 const POINCARE_TO_HALF_PLANE = Mobius.mapThree(
     new Complex(0, -1), new Complex(0, 0), new Complex(0, 1),
     new Complex(0, 0), new Complex(0, 1), Complex.INFINITY);
@@ -129,6 +130,50 @@ export class HyperPoint {
     isIdeal() {
         return closeEnough(this.klein.modulusSquared(), 1);
     }
+
+    heading(other: HyperPoint) {
+        if (this.equals(other)) throw new Error('Heading from point to itself');
+        const g = new HyperGeodesic(this, other);
+        const s = g.segment(HyperbolicModel.POINCARE);
+        if (s instanceof LineSegment) {
+            return this.poincare.heading(other.poincare);
+        } else if (s instanceof ArcSegment) {
+            const c = s.center;
+            if (s.start.equals(this.poincare)) {
+                return normalizeAngle(c.heading(this.poincare) + Math.PI * 0.5);
+            } else {
+                return normalizeAngle(c.heading(this.poincare) - Math.PI * 0.5);
+            }
+        } else {
+            throw new Error('Unknown segment type');
+        }
+    }
+
+    static trueToPoincare(trueDistance: number) {
+        return Math.tanh(trueDistance / 2);
+    }
+
+    static poincareToTrue(poincare: number) {
+        return 2 * Math.atanh(poincare);
+    }
+
+    static trueToKlein(trueDistance: number) {
+        const p = HyperPoint.trueToPoincare(trueDistance);
+        return HyperPoint.poincareToKlein(p);
+    }
+
+    static kleinToTrue(klein: number) {
+        const p = HyperPoint.kleinToPoincare(klein);
+        return HyperPoint.poincareToTrue(p);
+    }
+
+    static kleinToPoincare(klein: number) {
+        return klein / (1 + Math.sqrt(1 - klein * klein));
+    }
+
+    static poincareToKlein(poincare: number) {
+        return poincare * (2 / (1 + poincare * poincare));
+    }
 }
 
 export class HyperGeodesic {
@@ -145,7 +190,7 @@ export class HyperGeodesic {
         this.q = q;
         // This part is easiest is the Klein model, since geodesics are straight lines there.
         const kl = Line.throughTwoPoints(p.klein, q.klein);
-        const ideals = new Circle(new Complex(), 1).intersectLine(kl);
+        const ideals = new Circle(Complex.ZERO, 1).intersectLine(kl);
         if (ideals.length != 2) throw new Error('Unexpected number of intersections');
         const dp = ideals[0].distance(p.klein);
         const dq = ideals[0].distance(q.klein);
@@ -223,9 +268,26 @@ export class HyperIsometry {
         return new HyperIsometry(Mobius.pointInversion(point.poincare));
     }
 
+    static rotation(r: number): HyperIsometry {
+        return new HyperIsometry(Mobius.rotation(r));
+    }
+
+    //  z - a
+    // ————————
+    // -å*z + 1
+    static blaschkeTransform(z: HyperPoint): HyperIsometry {
+        const a = z.poincare.scale(-1);
+        return new HyperIsometry(
+            new Mobius(
+                Complex.ONE, a,
+                a.conjugate, Complex.ONE,
+            )
+        );
+    }
+
     apply(point: HyperPoint): HyperPoint {
         const poincarePoint = this.poincareMobius.apply(point.poincare);
-        if (closeEnough(point.poincare.modulusSquared(), 0)) poincarePoint.normalize();
+        if (closeEnough(point.poincare.modulusSquared(), 1)) poincarePoint.normalize();
         return HyperPoint.fromPoincare(poincarePoint);
     }
 
@@ -240,13 +302,13 @@ export class HyperIsometry {
         }).map(p => HyperPoint.fromPoincare(p));
     }
 
-    rotation(): number {
+    rotationAngle(): number {
         if (this.equals(HyperIsometry.IDENTITY)) return 0;
         const f = this.fixedPoints().find(p => !p.isIdeal());
         if (!f) throw new Error('Isometry has no interior fixed points');
-        const one = HyperPoint.fromPoincare(new Complex(1, 0));
-        const h1 = f.poincare.heading(one.poincare);
-        const h2 = f.poincare.heading(this.apply(one).poincare);
+        const one = HyperPoint.fromPoincare(Complex.ONE);
+        const h1 = f.heading(one);
+        const h2 = f.heading(this.apply(one));
         return normalizeAngle(h2, h1) - h1;
     }
 

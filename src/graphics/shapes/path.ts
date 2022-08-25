@@ -1,4 +1,4 @@
-import {Drawable2D} from "./drawable2D";
+import {Drawable} from "./drawable";
 import {Complex} from "../../math/complex";
 import {Color} from "./color";
 import {Shape2D, Vertex2D} from "./shape2D";
@@ -8,7 +8,7 @@ import {ArcSegment as ArcSegment} from "../../math/geometry/arc-segment";
 import {Segment} from "../../math/geometry/segment";
 import {LineSegment} from "../../math/geometry/line-segment";
 
-export class Path extends Drawable2D {
+export class Path extends Drawable {
     constructor(gl: WebGL2RenderingContext, spec: PathSpec) {
         const vertices: Vertex2D[] = spec.vertices.map(v => new Vertex2D(v, spec.color));
         const path = new Shape2D(gl, vertices, gl.LINE_STRIP)

@@ -1,19 +1,19 @@
 import { Camera } from "./camera/camera";
 import { Shader } from "./gl/shader";
-import {Drawable2D} from "./shapes/drawable2D";
+import {Drawable} from "./shapes/drawable";
 
 export class Scene {
-    private readonly drawables: Map<string, Drawable2D>;
+    private readonly drawables: Map<string, Drawable>;
 
     constructor() {
-        this.drawables = new Map<string, Drawable2D>();
+        this.drawables = new Map<string, Drawable>();
     }
 
-    set(name: string, drawable: Drawable2D): void {
+    set(name: string, drawable: Drawable): void {
         this.drawables.set(name, drawable);
     }
 
-    get(name: string): Drawable2D|undefined {
+    get(name: string): Drawable|undefined {
         return this.drawables.get(name);
     }
 

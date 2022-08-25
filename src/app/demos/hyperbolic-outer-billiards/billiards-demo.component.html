@@ -1,0 +1,93 @@
+<div class="container">
+    <h2>Hyperbolic Outer Billiards</h2>
+    <div class="contents">
+        <div class="column">
+<!--            <div class="settings">-->
+<!--                <div class="setting">-->
+<!--                    <span class="setting-label">Angle A:</span>-->
+<!--                    <mat-slider min="0.01"-->
+<!--                                max="3.14"-->
+<!--                                step="0.01"-->
+<!--                                thumbLabel-->
+<!--                                [(ngModel)]="settings.angleA"-->
+<!--                                (change)="triangleFromAngles()"-->
+<!--                    ></mat-slider>-->
+<!--                </div>-->
+<!--                <div class="setting">-->
+<!--                    <span class="setting-label">Angle B:</span>-->
+<!--                    <mat-slider min="0.01"-->
+<!--                                max="3.14"-->
+<!--                                step="0.01"-->
+<!--                                thumbLabel-->
+<!--                                [(ngModel)]="settings.angleB"-->
+<!--                                (change)="triangleFromAngles()"-->
+<!--                    ></mat-slider>-->
+<!--                </div>-->
+<!--                <div class="setting">-->
+<!--                    <span class="setting-label">Angle C:</span>-->
+<!--                    <mat-slider min="0.01"-->
+<!--                                max="3.14"-->
+<!--                                step="0.01"-->
+<!--                                thumbLabel-->
+<!--                                [(ngModel)]="settings.angleC"-->
+<!--                                (change)="triangleFromAngles()"-->
+<!--                    ></mat-slider>-->
+<!--                </div>-->
+<!--                <div class="setting">-->
+<!--                    <span class="setting-label">Preimage iterations:</span>-->
+<!--                    <mat-slider min="1"-->
+<!--                                max="250"-->
+<!--                                step="1"-->
+<!--                                thumbLabel-->
+<!--                                [(ngModel)]="settings.preimageIterations"-->
+<!--                                (change)="triangleFromAngles()"-->
+<!--                    ></mat-slider>-->
+<!--                </div>-->
+<!--                <div class="setting">-->
+<!--                    <span class="setting-label">Search iterations:</span>-->
+<!--                    <mat-slider min="0"-->
+<!--                                max="50"-->
+<!--                                step="1"-->
+<!--                                thumbLabel-->
+<!--                                [(ngModel)]="settings.searchIterations"-->
+<!--                                (change)="triangleFromAngles()"-->
+<!--                    ></mat-slider>-->
+<!--                </div>-->
+<!--            </div>-->
+
+<!--            <div class="output">-->
+<!--                <h3>Output</h3>-->
+<!--                <div class="result">-->
+<!--                    <span class="result-label">Orbit: </span>-->
+<!--                    <span class="result-value">{{orbitText()}}</span>-->
+<!--                </div>-->
+
+<!--                <div class="result">-->
+<!--                    <span class="result-label">Orbit length: </span>-->
+<!--                    <span class="result-value">{{orbitLengthText()}}</span>-->
+<!--                </div>-->
+
+
+<!--                <div class="result">-->
+<!--                    <span class="result-label">Orbit rotation angle: </span>-->
+<!--                    <span class="result-value">{{orbitAngleText()}}</span>-->
+<!--                </div>-->
+<!--            </div>-->
+            <hob-settings
+            ></hob-settings>
+<!--            <point-picker-->
+<!--                    class="triangle-picker"-->
+<!--                    viewShader="demo3d"-->
+<!--                    pickShader="pick3d"-->
+<!--            >-->
+<!--            </point-picker>-->
+        </div>
+
+        <billiards-view
+                class="billiards-view"
+                [settings]="settings"
+                viewShader="demo2d"
+                pickShader="pick2d"
+        ></billiards-view>
+    </div>
+</div>
