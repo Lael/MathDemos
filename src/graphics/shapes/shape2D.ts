@@ -8,8 +8,8 @@ export class Shape2D extends Shape {
                 vertices: Vertex2D[],
                 drawMode: GLenum) {
         const vertexAttribs = [
-            new VertexAttrib(0, 2, gl.FLOAT, 6*4, 0), // Position
-            new VertexAttrib(1, 4, gl.FLOAT, 6*4, 2*4), // Color
+            new VertexAttrib(0, 2, gl.FLOAT, 6 * 4, 0), // Position
+            new VertexAttrib(1, 4, gl.FLOAT, 6 * 4, 2 * 4), // Color
         ];
         const data: number[] = [];
         for (let v of vertices) v.writeTo(data);
@@ -18,7 +18,8 @@ export class Shape2D extends Shape {
 }
 
 export class Vertex2D {
-    constructor(private readonly p: Complex, private readonly c: Color) {}
+    constructor(readonly p: Complex, readonly c: Color) {
+    }
 
     writeTo(data: number[]) {
         data.push(this.p.x);

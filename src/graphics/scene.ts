@@ -1,5 +1,5 @@
-import { Camera } from "./camera/camera";
-import { Shader } from "./gl/shader";
+import {Camera} from "./camera/camera";
+import {Shader} from "./gl/shader";
 import {Drawable} from "./shapes/drawable";
 
 export class Scene {
@@ -13,10 +13,6 @@ export class Scene {
         this.drawables.set(name, drawable);
     }
 
-    get(name: string): Drawable|undefined {
-        return this.drawables.get(name);
-    }
-
     remove(name: string): boolean {
         return this.drawables.delete(name);
     }
@@ -24,9 +20,11 @@ export class Scene {
     draw(shader: Shader, camera: Camera) {
         shader.bind();
         shader.setUniform('uCamera', camera.matrix);
+        shader.setUniform('uOrdering', 0.5);
 
-        for (let drawable of this.drawables.values()) {
-            drawable.draw(shader);
+        const keys = Array.from(this.drawables.keys());
+        for (let key of keys.sort()) {
+            this.drawables.get(key)?.draw(shader);
         }
 
         shader.unbind();

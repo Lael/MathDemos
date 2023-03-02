@@ -3,21 +3,33 @@ import {Color} from "./color";
 import {Drawable} from "./drawable";
 import {Complex} from "../../math/complex";
 import {ArcRegion} from "../../math/geometry/arc-region";
+import {UniformType} from "../gl/shader";
+import {Path} from "./path";
 
 export class Polygon2D extends Drawable {
-    constructor(gl: WebGL2RenderingContext, spec: PolygonSpec) {
+    constructor(gl: WebGL2RenderingContext, spec: PolygonSpec, ordering = 0) {
         const shapes: Shape2D[] = [];
-        let fill: Shape2D|undefined = undefined;
-        let border: Shape2D|undefined = undefined;
+        let fill: Shape2D | undefined = undefined;
+        let border: Shape2D | undefined = undefined;
         if (spec.fillColor) {
             fill = new Shape2D(gl, Polygon2D.fillVertices(spec.vertices, spec.fillColor), gl.TRIANGLES);
             shapes.push(fill);
         }
         if (spec.borderColor) {
-            border = new Shape2D(gl, Polygon2D.borderVertices(spec.vertices, spec.borderColor), gl.LINE_STRIP);
+            if (spec.thickness === 0) {
+                border = new Shape2D(gl, Polygon2D.borderVertices(spec.vertices, spec.borderColor), gl.LINE_STRIP);
+            } else {
+                const points = [...spec.vertices];
+                if (!spec.vertices[spec.vertices.length - 1].equals(spec.vertices[0])) {
+                    points.push(spec.vertices[0])
+                }
+                border = new Shape2D(gl, Path.thickPathVertices(points, spec.thickness, spec.borderColor), gl.TRIANGLES);
+            }
             shapes.push(border);
         }
-        super(shapes);
+        const uniforms = new Map<string, UniformType>();
+        uniforms.set('uOrdering', ordering);
+        super(shapes, uniforms);
     }
 
     private static fillVertices(points: Complex[], fill: Color): Vertex2D[] {
@@ -58,7 +70,7 @@ export class Polygon2D extends Drawable {
         return triangles;
     }
 
-    private static nextEar(points: Complex[], indices: number[]): Triangle|null {
+    private static nextEar(points: Complex[], indices: number[]): Triangle | null {
         for (let i = 0; i < indices.length; i++) {
             const l = indices[i];
             const m = indices[(i + 1) % indices.length];
@@ -93,20 +105,22 @@ export class Polygon2D extends Drawable {
         return Polygon2D.orientation(p1, p2, t) && Polygon2D.orientation(p2, p3, t) && Polygon2D.orientation(p3, p1, t);
     }
 
-    static fromArcRegion(gl: WebGL2RenderingContext, r: ArcRegion, fill: Color|undefined, border: Color|undefined): Polygon2D {
+    static fromArcRegion(gl: WebGL2RenderingContext, r: ArcRegion, fill: Color | undefined, border: Color | undefined): Polygon2D {
         return new Polygon2D(gl, new PolygonSpec(r.vertices(), fill, border));
     }
 }
 
 class Triangle {
-    constructor(readonly a: number, readonly b: number, readonly c: number) {}
+    constructor(readonly a: number, readonly b: number, readonly c: number) {
+    }
 }
 
 export class PolygonSpec {
     constructor(
         readonly vertices: Complex[],
-        readonly fillColor: Color|undefined,
-        readonly borderColor: Color|undefined) {
+        readonly fillColor: Color | undefined,
+        readonly borderColor: Color | undefined,
+        readonly thickness: number = 0) {
         if (vertices.length < 3) throw Error('Polygon must have at least 3 vertices');
         if (!fillColor && !borderColor) throw Error('Invisible polygon');
     }

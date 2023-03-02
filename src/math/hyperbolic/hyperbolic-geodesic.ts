@@ -1,5 +1,5 @@
 import {Complex} from "../complex";
-import {Circle} from "../geometry/circle";
+import {AffineCircle} from "../geometry/affine-circle";
 import {normalizeAngle} from "../math-helpers";
 import {Line} from "../geometry/line";
 import {Segment} from "../geometry/segment";
@@ -8,7 +8,7 @@ import {ArcSegment} from "../geometry/arc-segment";
 
 export class HyperbolicGeodesic {
     readonly isDiameter: boolean;
-    readonly circle: Circle|null;
+    readonly circle: AffineCircle | null;
 
     // The ideal points on the unit circle closer to p1 and p2, respectively.
     readonly ideal1: Complex;
@@ -50,13 +50,13 @@ export class HyperbolicGeodesic {
         }
     }
 
-    private static computeCircle(p1: Complex, p2: Complex): Circle {
+    private static computeCircle(p1: Complex, p2: Complex): AffineCircle {
         const pp = p1.scale(1.0 / p1.modulusSquared());
         const p1ppb = Line.bisector(p1, pp);
         const p1p2b = Line.bisector(p1, p2);
         const center = p1ppb.intersectLine(p1p2b);
         const radius = center.distance(p1);
-        return new Circle(center, radius);
+        return new AffineCircle(center, radius);
     }
 
     startHeading() {

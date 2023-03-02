@@ -1,0 +1,8 @@
+<a [routerLink]="path" class="tile-anchor">
+    <img *ngIf="image !== ''"
+         [src]="image"
+         class="tile-image">
+    <div class="overlay">
+        <span class="tile-title">{{title}}</span>
+    </div>
+</a>

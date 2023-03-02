@@ -7,7 +7,7 @@ export abstract class Camera {
     // Forward, up, & right form should be kept orthonormal.
     protected forward = new Vector3(0, 0, -1);
     protected up = new Vector3(0, 1, 0);
-    protected right= new Vector3(1, 0, 0);
+    protected right = new Vector3(1, 0, 0);
 
     // Viewport width / height
     protected aspectRatio = 1.0;
@@ -62,6 +62,10 @@ export abstract class Camera {
         this.markDirty();
     }
 
+    getZoom() {
+        return this.zoom;
+    }
+
     moveWorld(t: Vector3): void {
         this.position.add(t);
         this.markDirty();
@@ -76,8 +80,8 @@ export abstract class Camera {
 
     get matrix() {
         if (this.dirty) {
-            this.dirty = false;
             this.cameraMatrix = this.computeCameraMatrix();
+            this.dirty = false;
         }
         return this.cameraMatrix.clone();
     }
@@ -128,9 +132,5 @@ export abstract class Camera {
         );
 
         return rotate.multiply(translate);
-    }
-
-    getZoom() {
-        return this.zoom;
     }
 }

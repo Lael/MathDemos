@@ -1,0 +1,17 @@
+<div class="pentagram-container">
+    <button *ngIf="!settingsOpen"
+            mat-mini-fab
+            class="settings-button"
+            (click)="openSettings()">
+        <mat-icon>settings</mat-icon>
+    </button>
+    <div *ngIf="settingsOpen"
+         class="settings-panel">
+        <button mat-mini-fab class="settings-close-button" (click)="closeSettings()">
+            <mat-icon>close</mat-icon>
+        </button>
+    </div>
+    <div class="view-wrapper">
+        <pentagram-view [allowPicking]="true" class="pentagram-view"></pentagram-view>
+    </div>
+</div>

@@ -6,6 +6,8 @@ export interface ShaderSpec {
     fragPath: string;
 }
 
+export type UniformType = number | Vector2 | Vector3 | Vector4 | Matrix4;
+
 export class Shader {
     private readonly vert: WebGLShader;
     private readonly frag: WebGLShader;
@@ -116,10 +118,11 @@ export class Shader {
         this.gl.useProgram(currentProgram);
     }
 
-    setUniform(name: string, v: number|Vector2|Vector3|Vector4|Matrix4): void {
-        if (v instanceof Number)
+    setUniform(name: string, v: UniformType): void {
+        if (!isNaN(v as number)) {
             this.setUniformHelper(name, this.gl.FLOAT,
-                (l: WebGLUniformLocation) => this.gl.uniform1f(l, v.valueOf() as number));
+                (l: WebGLUniformLocation) => this.gl.uniform1f(l, v as number));
+        }
         if (v instanceof Vector2)
             this.setUniformHelper(name, this.gl.FLOAT_VEC2,
                 (l: WebGLUniformLocation) => this.gl.uniform2f(l, v.x, v.y));

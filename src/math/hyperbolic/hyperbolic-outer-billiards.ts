@@ -14,7 +14,7 @@ interface Orbit {
     map: HyperIsometry;
 }
 
-export class HyperbolicOuterBilliardsSettings {
+export class HOBSettings {
     model: HyperbolicModel = HyperbolicModel.POINCARE;
     equilateralRadius: number = 0.2;
     vertexCount: number = 3;
@@ -23,19 +23,19 @@ export class HyperbolicOuterBilliardsSettings {
     angleA: number = Math.PI / 4;
     angleB: number = Math.PI / 4;
     angleC: number = Math.PI / 4;
-    showPreimages: boolean = true;
+    showPreimages: boolean = false;
     showOrbitPaths: boolean = false;
 
     dirty: boolean = true;
 }
 
-export class HyperbolicOuterBilliardsResults {
-    orbit: boolean = false;
+export class HOBResults {
+    hasOrbit: boolean = false;
     orbitLength: number = -1;
     orbitMapRotation: number = -1;
 
     reset() {
-        this.orbit = false;
+        this.hasOrbit = false;
         this.orbitLength = -1;
         this.orbitMapRotation = -1;
     }
@@ -53,14 +53,14 @@ export class HyperbolicOuterBilliards {
     private imageRegions: HyperPolygon[] = [];
     private orbits: Orbit[] = [];
 
-    settings: HyperbolicOuterBilliardsSettings = new HyperbolicOuterBilliardsSettings();
+    settings: HOBSettings = new HOBSettings();
 
     constructor(private readonly gl: WebGL2RenderingContext,
-                readonly results: HyperbolicOuterBilliardsResults) {
+                readonly results: HOBResults) {
         this.equilateral();
     }
 
-    setSettings(settings: HyperbolicOuterBilliardsSettings) {
+    setSettings(settings: HOBSettings) {
         this.settings = settings;
     }
 
@@ -155,7 +155,7 @@ export class HyperbolicOuterBilliards {
             maps.push(this.maps[i]);
             ranges.push(this.imageRegions[i]);
         }
-        for (let len = 2; len <= this.settings.searchIterations; len ++) {
+        for (let len = 2; len <= this.settings.searchIterations; len++) {
             const newWords = [];
             const newMaps = [];
             const newRanges = [];
@@ -174,7 +174,8 @@ export class HyperbolicOuterBilliards {
                         newWords.push(newWord);
                         newMaps.push(newMap);
                         newRanges.push(newRange);
-                    } catch (_) {}
+                    } catch (_) {
+                    }
                 }
             }
             words = newWords;
@@ -219,8 +220,8 @@ export class HyperbolicOuterBilliards {
         }
 
         // console.log(`Found a periodic orbit of length ${orbit.word.length} and rotation angle ${orbit.map.rotation() / Math.PI}π`);
-        if (!this.results.orbit && orbit.word.length === this.settings.vertexCount) {
-            this.results.orbit = true;
+        if (!this.results.hasOrbit && orbit.word.length === this.settings.vertexCount) {
+            this.results.hasOrbit = true;
             this.results.orbitLength = orbit.word.length;
             this.results.orbitMapRotation = orbit.map.rotationAngle();
         }
@@ -302,7 +303,7 @@ export class HyperbolicOuterBilliards {
         }
     }
 
-    populateScene(scene: Scene, point: Complex|null) {
+    populateScene(scene: Scene, point: Complex | null) {
         const n = this.settings.preimageIterations;
         if (this.inProgressN >= n) {
             this.tracePoints(scene, point);
@@ -311,30 +312,30 @@ export class HyperbolicOuterBilliards {
         scene.clear();
 
         // Poincaré disk model
-        scene.set('disk', new Disk(this.gl!, new DiskSpec(Complex.ZERO, 1, Color.BLUSH, Color.BLACK)));
-        scene.set('table', this.table.polygon(this.settings.model, this.gl, Color.CRIMSON, Color.ONYX));
+        scene.set('disk', new Disk(this.gl!, new DiskSpec(Complex.ZERO, 1, Color.BLUSH, Color.ONYX), 0));
+        scene.set('table', this.table.polygon(this.settings.model, this.gl, Color.CRIMSON, Color.ONYX, 0.1));
         if (this.settings.showPreimages) {
             this.iteratePreimages(n, Date.now());
             for (let i = 0; i < this.arcPreimages.length; i++) {
                 scene.set(`geodesic_preimage_${i + 1}`, this.arcPreimages[i]);
             }
         }
-        // this.tracePoint(scene, point);
+        // this.tracePoints(scene, point);
         return;
     }
 
-    private tracePoints(scene: Scene, point: Complex|null) {
+    private tracePoints(scene: Scene, point: Complex | null) {
         for (let orbit of this.orbits) {
             const segments: Segment[] = [];
             const name = orbit.word.join('');
             for (let i = 0; i < orbit.points.length; i++) {
-                scene.set(`orbit_${name}_${i+1}`,
+                scene.set(`orbit_${name}_${i + 1}`,
                     new Disk(this.gl,
                         new DiskSpec(orbit.points[i].resolve(this.settings.model), 0.002, Color.RED, undefined)));
-                segments.push(new HyperGeodesic(orbit.points[i], orbit.points[(i+1) % orbit.points.length]).segment(this.settings.model));
+                segments.push(new HyperGeodesic(orbit.points[i], orbit.points[(i + 1) % orbit.points.length]).segment(this.settings.model));
             }
             if (this.settings.showOrbitPaths) {
-                scene.set(`orbit_${name}_arc`, MultiArc.fromSegmentList(this.gl, segments, Color.TURQUOISE));
+                scene.set(`orbit_${name}_arc`, MultiArc.fromSegmentList(this.gl, segments, Color.TURQUOISE, undefined, 0.2));
             }
         }
 
@@ -342,7 +343,7 @@ export class HyperbolicOuterBilliards {
         scene.remove('point');
         scene.remove('orbit_mouse_arc');
         for (let i = 0; i < MOUSE_TRACE_ITERATIONS; i++) {
-            scene.remove(`point_${i+1}`);
+            scene.remove(`point_${i + 1}`);
         }
         if (point === null) return;
         const op = new HyperPoint(point, this.settings.model);
@@ -354,7 +355,7 @@ export class HyperbolicOuterBilliards {
         for (let i = 0; i < MOUSE_TRACE_ITERATIONS; i++) {
             try {
                 const np = this.forwardMap(hp).apply(hp);
-                scene.set(`point_${i+1}`, new Disk(this.gl, new DiskSpec(np.resolve(this.settings.model), 0.002, Color.MAGENTA, undefined)));
+                scene.set(`point_${i + 1}`, new Disk(this.gl, new DiskSpec(np.resolve(this.settings.model), 0.002, Color.MAGENTA, undefined)));
                 segments.push(new HyperGeodesic(hp, np).segment(this.settings.model));
                 hp = np;
                 const d = np.resolve(this.settings.model).distance(op.resolve(this.settings.model));

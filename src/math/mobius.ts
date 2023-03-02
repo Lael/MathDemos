@@ -1,6 +1,5 @@
 import {Transformation} from "./transformation";
 import {Complex} from "./complex";
-import {HyperbolicGeodesic} from "./hyperbolic/hyperbolic-geodesic";
 import {solveQuadratic} from "./math-helpers";
 
 export class Mobius extends Transformation {
@@ -12,19 +11,25 @@ export class Mobius extends Transformation {
     private readonly d: Complex;
 
     constructor(
-        a: Complex,
-        b: Complex,
-        c: Complex,
-        d: Complex) {
+        av: Complex | number,
+        bv: Complex | number,
+        cv: Complex | number,
+        dv: Complex | number) {
         super();
+        const a: Complex = (av instanceof Complex) ? av : new Complex(av, 0);
+        const b: Complex = (bv instanceof Complex) ? bv : new Complex(bv, 0);
+        const c: Complex = (cv instanceof Complex) ? cv : new Complex(cv, 0);
+        const d: Complex = (dv instanceof Complex) ? dv : new Complex(dv, 0);
+
         const det = a.times(d).minus(b.times(c));
         if (det.isZero()) throw Error('Degenerate Möbius transformation');
         if (a.isInfinite() || b.isInfinite() || c.isInfinite() || d.isInfinite())
             throw Error('Möbius transformation with infinite coefficient');
-        this.a = a.over(det);
-        this.b = b.over(det);
-        this.c = c.over(det);
-        this.d = d.over(det);
+        const sd = det.pow(0.5);
+        this.a = a.over(sd);
+        this.b = b.over(sd);
+        this.c = c.over(sd);
+        this.d = d.over(sd);
     }
 
     override apply(z: Complex): Complex {
@@ -48,6 +53,7 @@ export class Mobius extends Transformation {
     }
 
     fixedPoints(): Complex[] {
+        if (this.c.isZero() && this.a.equals(this.d)) return [new Complex()];
         if (this.c.isZero()) return [this.b.over(this.d.minus(this.a))];
         return solveQuadratic(this.c, this.d.minus(this.a), this.b.scale(-1));
     }
@@ -93,13 +99,31 @@ export class Mobius extends Transformation {
     }
 
     static pointInversion(p: Complex): Mobius {
-        if (p.modulusSquared() >= 1) throw Error('Non-interior point inversion');
+        if (p.isZero())
+            if (p.modulusSquared() >= 1) throw Error('Non-interior point inversion');
         if (p.isZero()) return new Mobius(new Complex(-1), Complex.ZERO, Complex.ZERO, Complex.ONE);
-        const g = new HyperbolicGeodesic(Complex.ZERO, p);
-        return this.mapThree(
-            p, g.ideal1, g.ideal2,
-            p, g.ideal2, g.ideal1
+        return new Mobius(
+            1 + p.modulusSquared(),
+            p.scale(-2),
+            p.conjugate.scale(2),
+            -(1 + p.modulusSquared()),
         );
+        // const g = new HyperbolicGeodesic(Complex.ZERO, p);
+        // return this.mapThree(
+        //     p, g.ideal1, g.ideal2,
+        //     p, g.ideal2, g.ideal1
+        // );
+    }
+
+    static rotateAroundPoint(p: Complex, a: number) {
+        const b1 = this.blaschke(p);
+        const b2 = this.blaschke(p.scale(-1));
+        const r = this.rotation(a);
+        return b2.compose(r.compose(b1));
+    }
+
+    static blaschke(p: Complex) {
+        return new Mobius(new Complex(1), p.scale(-1), p.conjugate.scale(-1), new Complex(1));
     }
 
     override toString(): string {

@@ -3,7 +3,7 @@ import {Matrix4} from "three";
 
 export class OrthographicCamera extends Camera {
     protected override computeCameraMatrix(): Matrix4 {
-        const angle = (Math.PI / 2 - Math.atan(this.aspectRatio));
+        const angle = Math.PI / 2 - Math.atan(this.aspectRatio);
         const n = -this.near;
         const f = -this.far;
         const w = Math.cos(angle) * this.zoom;

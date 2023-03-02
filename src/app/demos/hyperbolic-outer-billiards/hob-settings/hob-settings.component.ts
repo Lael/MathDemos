@@ -1,5 +1,5 @@
 import {Component, EventEmitter, OnInit, Output} from '@angular/core';
-import {HyperbolicOuterBilliardsSettings} from "../../../../math/hyperbolic/hyperbolic-outer-billiards";
+import {HOBSettings} from "../../../../math/hyperbolic/hyperbolic-outer-billiards";
 import {HyperbolicModel, HyperPoint} from "../../../../math/hyperbolic/hyperbolic";
 
 @Component({
@@ -10,10 +10,10 @@ import {HyperbolicModel, HyperPoint} from "../../../../math/hyperbolic/hyperboli
 export class HobSettingsComponent implements OnInit {
   model = HyperbolicModel;
 
-  settings = new HyperbolicOuterBilliardsSettings();
+  settings = new HOBSettings();
 
   @Output('settings')
-  settingsEmitter = new EventEmitter<HyperbolicOuterBilliardsSettings>();
+  settingsEmitter = new EventEmitter<HOBSettings>();
 
   constructor() { }
 

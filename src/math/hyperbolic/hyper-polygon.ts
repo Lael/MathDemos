@@ -7,14 +7,15 @@ import {closeEnough, normalizeAngle} from "../math-helpers";
 import {Segment} from "../geometry/segment";
 
 export class IdealArc {
-    constructor(readonly start: HyperPoint, readonly mid: HyperPoint, readonly end: HyperPoint) {}
+    constructor(readonly start: HyperPoint, readonly mid: HyperPoint, readonly end: HyperPoint) {
+    }
 
     interpolate(model: HyperbolicModel, start: HyperPoint, includeLast: boolean = true): Complex[] {
         const s = fromThreePoints(
             this.start.resolve(model),
             this.mid.resolve(model),
             this.end.resolve(model),
-            );
+        );
         let points = s.interpolate(1);
         if (!points[0].equals(start.resolve(model))) points = points.reverse();
         if (!includeLast) points.pop();
@@ -85,7 +86,7 @@ export class IdealArc {
     // }
 }
 
-export type HyperSegment = IdealArc|HyperGeodesic;
+export type HyperSegment = IdealArc | HyperGeodesic;
 
 export class HyperPolygon {
     readonly vertices: HyperPoint[];
@@ -139,7 +140,7 @@ export class HyperPolygon {
         const s0 = Math.sin(a0);
         const s1 = Math.sin(a1);
         const s2 = Math.sin(a2);
-        
+
         let v0, v1, v2;
         let center = undefined;
 
@@ -188,7 +189,7 @@ export class HyperPolygon {
             center = new HyperGeodesic(v2, m01).intersect(new HyperGeodesic(v1, m02));
         }
 
-        if (!center) center = HyperPoint.fromPoincare(v0.poincare.plus(v1.poincare).plus(v2.poincare).scale(1/3.0));
+        if (!center) center = HyperPoint.fromPoincare(v0.poincare.plus(v1.poincare).plus(v2.poincare).scale(1 / 3.0));
         const b = HyperIsometry.blaschkeTransform(center);
 
         v0 = b.apply(v0);
@@ -281,22 +282,28 @@ export class HyperPolygon {
             try {
                 const c1 = HyperPoint.fromKlein(e.mid.klein.plus(d));
                 if (this.containsPoint(c1)) return c1;
-            } catch (e) {}
+            } catch (e) {
+            }
             try {
                 const c2 = HyperPoint.fromKlein(e.mid.klein.minus(d));
                 if (this.containsPoint(c2)) return c2;
-            } catch (e) {}
+            } catch (e) {
+            }
         }
         throw new Error('Could not find interior point');
     }
 
-    polygon(model: HyperbolicModel, gl: WebGL2RenderingContext, fillColor: Color|undefined, borderColor: Color|undefined) {
+    polygon(model: HyperbolicModel,
+            gl: WebGL2RenderingContext,
+            fillColor: Color | undefined,
+            borderColor: Color | undefined,
+            ordering = 0) {
         if (!fillColor && !borderColor) throw Error('Invisible HyperbolicPolygon');
         switch (model) {
             case HyperbolicModel.POINCARE:
-                return new Polygon2D(gl, new PolygonSpec(this.poincareVertices, fillColor, borderColor));
+                return new Polygon2D(gl, new PolygonSpec(this.poincareVertices, fillColor, borderColor), ordering);
             case HyperbolicModel.KLEIN:
-                return new Polygon2D(gl, new PolygonSpec(this.kleinVertices, fillColor, borderColor));
+                return new Polygon2D(gl, new PolygonSpec(this.kleinVertices, fillColor, borderColor), ordering);
             // case HyperbolicModel.HALF_PLANE:
             //     return this.halfPlane;
             default:
@@ -304,7 +311,7 @@ export class HyperPolygon {
         }
     }
 
-    convexIntersect(other: HyperPolygon): HyperPolygon|undefined {
+    convexIntersect(other: HyperPolygon): HyperPolygon | undefined {
         const vertices: HyperPoint[] = [];
         // Intersection has vertices of this contained in other...
         vertices.push(...this.edges.map(e => e.start).filter(v => other.containsPoint(v, false)));

@@ -17,3 +17,20 @@ export function solveQuadratic(a: Complex, b: Complex, c: Complex): Complex[] {
     if (d.isZero()) return [b.scale(-0.5).over(a)];
     return [b.scale(-1).minus(d).over(a.scale(2)), b.scale(-1).plus(d).over(a.scale(2))];
 }
+
+export function lcm(a: number, b: number): number {
+    if (!Number.isInteger(a) && !Number.isInteger(b)) throw Error('Cannot compute LCM of non-integers');
+    const aa = Math.abs(a);
+    const bb = Math.abs(b);
+    if (aa === bb) return aa;
+    if (aa === 0 || bb === 0) return Math.max(aa, bb);
+
+    // O(min(a,b)) implementation:
+    const small = Math.min(aa, bb);
+    const large = Math.max(aa, bb);
+    for (let i = 1; i < small; i++) {
+        const guess = i * large;
+        if (guess % small === 0) return guess;
+    }
+    return small * large;
+}

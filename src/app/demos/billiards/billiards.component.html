@@ -1,0 +1,100 @@
+<div class="billiards-container">
+    <button *ngIf="!settingsOpen"
+            mat-mini-fab
+            class="settings-button"
+            (click)="openSettings()">
+        <mat-icon>settings</mat-icon>
+    </button>
+    <div *ngIf="settingsOpen"
+         class="settings-panel">
+        <button mat-mini-fab class="settings-close-button" (click)="closeSettings()">
+            <mat-icon>close</mat-icon>
+        </button>
+        <div class="billiards-type-select">
+            Show me
+            <button (click)="cycleFlavor()"
+                    class="flavor-select">{{settings.flavor}}
+            </button>
+            <button (click)="cycleDuality()"
+                    class="duality-select">{{settings.duality}}
+            </button>
+            billiards in the
+            <button (click)="cyclePlane()"
+                    class="plane-select">{{settings.plane}}
+            </button>
+            plane.
+        </div>
+        <div class="table-select">
+            Table shape:
+            <button (click)="cycleTableShape()"
+                    [disabled]="settings.plane === Plane.HYPERBOLIC"
+                    class="shape-select">
+                {{settings.tableShape}}
+            </button>
+        </div>
+        <div [ngSwitch]="settings.tableShape">
+            <div *ngSwitchCase="TableShape.POLYGON" class="table-details">
+                <div class="setting-pair">
+                    <span>Vertices: </span>
+                    <mat-slider [(ngModel)]="settings.polygonDetails.vertexCount"
+                                min="3" max="10" step="1"
+                                (change)="updateSettings()"></mat-slider>
+                </div>
+                <div class="setting-pair" *ngIf="settings.plane === Plane.HYPERBOLIC">
+                    <span>Radius: </span>
+                    <mat-slider [(ngModel)]="settings.polygonDetails.radius"
+                                (change)="updateSettings()"
+                                min="0.01" max="2" step="0.01"></mat-slider>
+                </div>
+            </div>
+            <div *ngSwitchCase="TableShape.ELLIPSE" class="table-details">
+                <div class="setting-pair">
+                    <span>Eccentricity: </span>
+                    <mat-slider [(ngModel)]="settings.ellipseDetails.eccentricity"
+                                (change)="updateSettings()"
+                                min="0" max="0.99" step="0.01"></mat-slider>
+                </div>
+
+            </div>
+            <div *ngSwitchCase="TableShape.STADIUM" class="table-details">
+                <div class="setting-pair">
+                    <span>Length: </span>
+                    <mat-slider [(ngModel)]="settings.stadiumDetails.length"
+                                (change)="updateSettings()"
+                                min="0.01" max="1" step="0.01"></mat-slider>
+                </div>
+                <div class="setting-pair">
+                    <span>Radius: </span>
+                    <mat-slider [(ngModel)]="settings.stadiumDetails.radius"
+                                (change)="updateSettings()"
+                                min="0.01" max="0.5" step="0.01"></mat-slider>
+                </div>
+            </div>
+        </div>
+        <div class="setting-pair">
+            <span>Iterations: </span>
+            <mat-slider [(ngModel)]="settings.iterations"
+                        (change)="updateSettings()"
+                        min="2" max="10000" step="1"></mat-slider>
+        </div>
+        <ng-container *ngIf="settings.duality === Duality.INNER">
+            <div class="setting-pair"
+                 *ngIf="settings.tableShape === TableShape.POLYGON">
+                <span>Unfold: </span>
+                <mat-checkbox [(ngModel)]="settings.unfold"
+                              (change)="updateSettings()"></mat-checkbox>
+            </div>
+        </ng-container>
+        <ng-container *ngIf="settings.duality === Duality.OUTER">
+            <div class="setting-pair">
+                <span>Debug: </span>
+                <mat-checkbox [(ngModel)]="settings.debug"
+                              (change)="updateSettings()"></mat-checkbox>
+            </div>
+        </ng-container>
+    </div>
+    <div class="view-wrapper">
+        <new-billiards-view [settings]="settings"
+                            class="normal-view"></new-billiards-view>
+    </div>
+</div>

@@ -1,0 +1,53 @@
+<div class="envelopes-container" class="container">
+    <button *ngIf="!settingsOpen"
+            mat-mini-fab
+            class="settings-button"
+            (click)="openSettings()">
+        <mat-icon>settings</mat-icon>
+    </button>
+    <div *ngIf="settingsOpen"
+         class="settings-panel">
+        <button mat-mini-fab class="settings-close-button" (click)="closeSettings()">
+            <mat-icon>close</mat-icon>
+        </button>
+        <div class="setting-pair">
+            <span>Small step: </span>
+            <mat-slider [(ngModel)]="settings.smallStep"
+                        [thumbLabel]="true"
+                        min="0"
+                        max="100"
+                        step="1"
+                        (change)="updateSettings()"></mat-slider>
+        </div>
+        <div class="setting-pair">
+            <span>Large step: </span>
+            <mat-slider [(ngModel)]="settings.largeStep"
+                        [thumbLabel]="true"
+                        min="0"
+                        max="100"
+                        step="1"
+                        (change)="updateSettings()"></mat-slider>
+        </div>
+        <div class="setting-pair">
+            <span>Offset: </span>
+            <mat-slider [(ngModel)]="settings.offset"
+                        [thumbLabel]="true"
+                        min="0"
+                        max="360"
+                        step="10"
+                        (change)="updateSettings()"></mat-slider>
+        </div>
+        <div class="setting-pair">
+            <span>Resolution: </span>
+            <mat-slider [(ngModel)]="settings.resolution"
+                        [thumbLabel]="true"
+                        min="-3"
+                        max="3"
+                        step="1"
+                        (change)="updateSettings()"></mat-slider>
+        </div>
+    </div>
+    <div class="view-wrapper">
+        <envelope-view [settings]="settings"></envelope-view>
+    </div>
+</div>

@@ -1,0 +1,52 @@
+.pentagram-container
+  height: 100%
+  width: 100%
+  background-color: darkslategray
+
+.pentagram-settings
+  border-radius: 24px
+  background-color: whitesmoke
+  position: absolute
+  left: 16px
+  top: 16px
+  z-index: 1
+  padding: 8px
+  display: flex
+  flex-direction: column
+
+  .settings-close-button
+    margin-bottom: 8px
+
+  .flavor-select
+    width: 80px
+    margin-right: 4px
+
+  .duality-select
+    width: 60px
+
+  .plane-select
+    width: 80px
+
+  .shape-select
+    width: 80px
+
+  .table-details
+    display: flex
+    flex-direction: column
+
+
+.view-wrapper
+  display: flex
+  gap: 4px
+  background-color: lightgray
+
+@media (orientation: landscape)
+  .view-wrapper
+    flex-direction: row
+
+@media (orientation: portrait)
+  .view-wrapper
+    flex-direction: column
+
+.normal-view
+  flex-grow: 1

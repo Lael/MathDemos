@@ -1,5 +1,6 @@
 import {Complex} from "../complex";
 import {closeEnough} from "../math-helpers";
+import {Vector2} from "three";
 
 export class Line {
     readonly a: number;
@@ -18,7 +19,9 @@ export class Line {
     }
 
     static srcDir(src: Complex, dir: Complex): Line {
-        if (dir.isZero()) throw new Error('Degenerate line');
+        if (dir.isZero()) {
+            throw new Error('Degenerate line');
+        }
         const m = dir.times(Complex.I);
         return new Line(
             m.x,
@@ -27,8 +30,14 @@ export class Line {
         );
     }
 
-    static throughTwoPoints(c1: Complex, c2: Complex): Line {
-        return Line.srcDir(c1, c2.minus(c1));
+    static throughTwoPoints(c1: Complex | Vector2, c2: Complex | Vector2): Line {
+        let p1: Complex;
+        if (c1 instanceof Vector2) p1 = Complex.fromVector2(c1);
+        else p1 = c1;
+        let p2: Complex;
+        if (c2 instanceof Vector2) p2 = Complex.fromVector2(c2);
+        else p2 = c2;
+        return Line.srcDir(p1, p2.minus(p1));
     }
 
     static bisector(p1: Complex, p2: Complex): Line {
@@ -41,7 +50,7 @@ export class Line {
         if (closeEnough(d, 0)) throw Error('Parallel lines do not intersect');
         const solution = new Complex(
             -other.b * this.c + this.b * other.c,
-             other.a * this.c - this.a * other.c,
+            other.a * this.c - this.a * other.c,
         ).scale(1 / d);
         if (!this.containsPoint(solution) || !other.containsPoint(solution)) {
             throw Error('Bad intersection');
@@ -51,5 +60,9 @@ export class Line {
 
     containsPoint(p: Complex): boolean {
         return closeEnough(this.a * p.x + this.b * p.y + this.c, 0);
+    }
+
+    perpAtPoint(p: Complex | Vector2): Line {
+        return new Line(this.b, -this.a, -this.b * p.x + this.a * p.y);
     }
 }

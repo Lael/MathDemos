@@ -1,7 +1,7 @@
 import {Complex} from "../complex";
 import {Segment} from "./segment";
 import {LineSegment} from "./line-segment";
-import {Circle} from "./circle";
+import {AffineCircle} from "./affine-circle";
 import {closeEnough, normalizeAngle} from "../math-helpers";
 import {ArcSegment as ArcSegment} from "./arc-segment";
 
@@ -15,7 +15,7 @@ export function fromThreePoints(p1: Complex, p2: Complex, p3: Complex): Segment 
 
     if (closeEnough(det, 0)) return new LineSegment(p1, p3);
 
-    const c = Circle.fromThreePoints(p1, p2, p3);
+    const c = AffineCircle.fromThreePoints(p1, p2, p3);
     const a1 = c.center.heading(p1);
     const a2 = normalizeAngle(c.center.heading(p2), a1);
     const a3 = normalizeAngle(c.center.heading(p3), a1);

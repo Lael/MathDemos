@@ -1,3 +1,6 @@
+import {closeEnough} from "./math-helpers";
+import {Vector2} from "three";
+
 export class Complex {
 
     static readonly ZERO: Complex = new Complex(0, 0);
@@ -7,6 +10,7 @@ export class Complex {
 
     private arg?: number;
     private mod?: number;
+    private mod2?: number;
 
     constructor(readonly real: number = 0, readonly imag: number = 0) {
         if (isNaN(real) || isNaN(imag)) {
@@ -15,13 +19,20 @@ export class Complex {
     }
 
     static polar(radius: number, angle: number): Complex {
-        if (radius < 0) throw Error('Radius cannot be negative');
         if (!isFinite(radius)) return Complex.INFINITY;
         if (!isFinite(angle)) throw Error('Angle cannot be infinite');
         return new Complex(
             radius * Math.cos(angle),
             radius * Math.sin(angle),
         );
+    }
+
+    static fromVector2(vec: Vector2): Complex {
+        return new Complex(vec.x, vec.y);
+    }
+
+    toVector2(): Vector2 {
+        return new Vector2(this.x, this.y);
     }
 
     get x(): number {
@@ -41,20 +52,23 @@ export class Complex {
     }
 
     isZero(): boolean {
-        return this.real === 0 && this.imag === 0;
+        return this.equals(Complex.ZERO);
     }
 
     modulus(): number {
         if (this.mod === undefined) {
             if (this.isInfinite()) this.mod = Infinity;
-            this.mod = Math.sqrt(this.real * this.real + this.imag * this.imag);
+            else this.mod = Math.sqrt(this.modulusSquared());
         }
         return this.mod;
     }
 
     modulusSquared(): number {
-        if (this.isInfinite()) return Infinity;
-        return this.real * this.real + this.imag * this.imag;
+        if (this.mod2 === undefined) {
+            if (this.isInfinite()) this.mod2 = Infinity;
+            else this.mod2 = this.real * this.real + this.imag * this.imag;
+        }
+        return this.mod2;
     }
 
     normalize(l: number = 1): Complex {
@@ -155,6 +169,21 @@ export class Complex {
 
     equals(other: Complex): boolean {
         if (this.isInfinite()) return other.isInfinite();
-        return this.distance(other) < 0.000_000_1;
+        return closeEnough(this.distance(other), 0);
+    }
+
+    static lerp(z1: Complex, z2: Complex, t: number) {
+        if (z1.isInfinite() && z2.isInfinite()) return this.INFINITY;
+        if (z1.isInfinite() || z2.isInfinite()) throw Error('lerp to infinity');
+        if (t < 0 || t > 1) throw Error('lerp factor not in [0, 1]');
+        return z1.plus(z2.minus(z1).scale(t));
+    }
+
+    cross(other: Complex) {
+        return this.x * other.y - this.y * other.x;
+    }
+
+    dot(other: Complex) {
+        return this.x * other.x + this.y * other.y;
     }
 }
