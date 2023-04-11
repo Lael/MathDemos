@@ -2,12 +2,34 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "skipLibCheck": true,
+    //    "emitDecoratorMetadata": true,
     "outDir": "./out-tsc/worker",
     "lib": [
-      "es2018",
+      "es2020",
       "webworker"
     ],
-    "types": []
+    "types": [],
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": true,
+    "declaration": false,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "node",
+    "importHelpers": true,
+    "target": "es2017",
+    "module": "es2020"
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
   },
   "include": [
     "src/**/*.worker.ts"

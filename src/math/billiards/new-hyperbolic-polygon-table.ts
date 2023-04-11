@@ -1,10 +1,10 @@
 import {HyperbolicModel, HyperGeodesic, HyperIsometry, HyperPoint} from "../hyperbolic/hyperbolic";
-import {Flavor} from "./billiards";
+import {Flavor} from "./new-billiard";
 import {Vector2} from "three";
 import {HyperPolygon} from "../hyperbolic/hyper-polygon";
 import {LineSegment} from "../geometry/line-segment";
 import {fixTime} from "./tables";
-import {closeEnough, normalizeAngle} from "../math-helpers";
+import {normalizeAngle} from "../math-helpers";
 import {Complex} from "../complex";
 
 export type HyperbolicInnerState = {
@@ -14,18 +14,16 @@ export type HyperbolicInnerState = {
 
 export type WorkerMessage = {
     id: number;
-    table: NewHyperbolicPolygonTable;
-    frontier: HyperGeodesic[];
+    vertices: number[][];
+    frontier: number[][];
     iterations: number;
 }
 
 export type WorkerResponse = {
     id: number;
-    singularities: HyperGeodesic[];
+    singularities: number[][];
     stillWorking: boolean;
 }
-
-const NUM_WORKERS = 1;
 
 export class NewHyperbolicPolygonTable {
     readonly n: number;
@@ -37,6 +35,7 @@ export class NewHyperbolicPolygonTable {
     workerJobID: number = 1;
     working = 0;
     singularities: HyperGeodesic[] = [];
+    fresh = false;
 
     constructor(readonly vertices: HyperPoint[]) {
         this.n = vertices.length;
@@ -51,13 +50,25 @@ export class NewHyperbolicPolygonTable {
     }
 
     onWorkerMessage(event: MessageEvent) {
-        console.log('Worker message event:', event);
         const response = (event.data as WorkerResponse);
+        console.log('Worker response:', response);
         if (response.id != this.workerJobID) return;
-        this.singularities.push(...response.singularities);
+        this.singularities.push(...response.singularities.map(f => new HyperGeodesic(
+            HyperPoint.fromPoincare(new Complex(
+                f[0],
+                f[1],
+            )),
+            HyperPoint.fromPoincare(new Complex(
+                f[2],
+                f[3],
+            )),
+        )));
         if (!response.stillWorking) this.working--;
-        if (this.working === 0) this.workerJobID++;
-        console.log('Finished in: ', -(this.workStartTime - Date.now()) / 1000, ' seconds');
+        if (this.working === 0) {
+            this.workerJobID++;
+            console.log('Finished in: ', -(this.workStartTime - Date.now()) / 1000, ' seconds');
+        }
+        this.fresh = true;
     }
 
     onWorkerError(event: ErrorEvent) {
@@ -77,23 +88,23 @@ export class NewHyperbolicPolygonTable {
         for (let i = 0; i < iterations; i++) {
             let newChord: HyperGeodesic;
             switch (flavor) {
-                case Flavor.REGULAR:
-                    try {
-                        newChord = this.innerRegular(chord);
-                    } catch (e) {
-                        return chords;
-                    }
-                    break;
-                case Flavor.SYMPLECTIC:
+            case Flavor.REGULAR:
+                try {
+                    newChord = this.innerRegular(chord);
+                } catch (e) {
                     return chords;
+                }
+                break;
+            case Flavor.SYMPLECTIC:
+                return chords;
                 // try {
                 //     newChord = this.innerSymplectic(chord);
                 // } catch (e) {
                 //     return chords;
                 // }
                 // break;
-                default:
-                    throw Error('Unknown flavor');
+            default:
+                throw Error('Unknown flavor');
             }
             if (newChord.p1.equals(chords[0].p1) && newChord.p2.equals(chords[0].p2)) break;
             chords.push(newChord);
@@ -178,6 +189,10 @@ export class NewHyperbolicPolygonTable {
             const inversion = HyperIsometry.pointInversion(v);
             point = inversion.apply(point);
             orbit.push(point);
+            if (point.equals(startingPoint)) {
+                console.log(`periodic with period ${i + 1}`);
+                break;
+            }
         }
         return orbit;
     }
@@ -190,6 +205,7 @@ export class NewHyperbolicPolygonTable {
         this.singularities = [];
         let frontier: HyperGeodesic[] = [];
         for (let i = 0; i < this.n; i++) {
+            // for (let i = 0; i < 1; i++) {
             const g = this.polygon.geodesics[i];
             frontier.push(new HyperGeodesic(g.p, g.ip));
         }
@@ -200,8 +216,13 @@ export class NewHyperbolicPolygonTable {
             //     for (let j = 0; j < workers.length; j++) {
             //         const message: WorkerMessage = {
             //             id: this.workerJobID,
-            //             table: this,
-            //             frontier: frontier.slice(j * geodesicsPerWorker, Math.min((j + 1) * geodesicsPerWorker, frontier.length)),
+            //             vertices: this.vertices.map(v => [v.poincare.x, v.poincare.y]),
+            //             frontier: frontier.slice(j * geodesicsPerWorker, Math.min((j + 1) * geodesicsPerWorker, frontier.length)).map(f => [
+            //                 f.start.poincare.x,
+            //                 f.start.poincare.y,
+            //                 f.end.poincare.x,
+            //                 f.end.poincare.y,
+            //             ]),
             //             iterations: iterations - i,
             //         }
             //         workers[i].postMessage(message);
@@ -229,7 +250,6 @@ export class NewHyperbolicPolygonTable {
                     continue;
                 }
                 try {
-
                     const newP = this.reflect(piece.p1, pivot);
                     const newQ = this.reflect(piece.p2, pivot);
                     if (newP.klein.distance(newQ.klein) < 0.000_01 ||
@@ -257,9 +277,9 @@ export class NewHyperbolicPolygonTable {
             const slicePoints = slicingRay.intersect(new LineSegment(preimage.p1.klein, preimage.p2.klein));
             if (slicePoints.length !== 1) continue;
             const intersection = slicePoints[0];
-            if (closeEnough(intersection.distance(preimage.start.klein), 0)) continue;
-            if (closeEnough(intersection.distance(preimage.end.klein), 0)) continue;
-            intersections.push(HyperPoint.fromKlein(intersection));
+            const ip = HyperPoint.fromKlein(intersection);
+            if (ip.equals(preimage.start) || ip.equals(preimage.end)) continue;
+            intersections.push(ip);
         }
 
         if (intersections.length === 0) return [preimage];
@@ -316,12 +336,12 @@ export class NewHyperbolicPolygonTable {
 
     interpolateVertices(model: HyperbolicModel): Vector2[] {
         switch (model) {
-            case HyperbolicModel.POINCARE:
-                return this.polygon.poincareVertices.map(c => c.toVector2());
-            case HyperbolicModel.KLEIN:
-                return this.polygon.kleinVertices.map(c => c.toVector2());
-            default:
-                throw Error('Unsupported model');
+        case HyperbolicModel.POINCARE:
+            return this.polygon.poincareVertices.map(c => c.toVector2());
+        case HyperbolicModel.KLEIN:
+            return this.polygon.kleinVertices.map(c => c.toVector2());
+        default:
+            throw Error('Unsupported model');
         }
     }
 }

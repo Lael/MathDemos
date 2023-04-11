@@ -1,11 +1,24 @@
 /// <reference lib="webworker" />
 
+import {NewHyperbolicPolygonTable} from "../../../math/billiards/new-hyperbolic-polygon-table";
+import {Complex} from "../../../math/complex";
+import {HyperGeodesic, HyperPoint} from "../../../math/hyperbolic/hyperbolic";
+
 addEventListener('message', ({data}) => {
-    console.log('hello!', data.table);
     const iterations = data.iterations;
     const id = data.id;
-    const table = data.table;
-    let frontier = data.frontier;
+    const table = new NewHyperbolicPolygonTable(data.vertices.map((v: number[]) => HyperPoint.fromPoincare(new Complex(v[0], v[1]))));
+    let frontier = data.frontier.map((f: number[]) =>
+        new HyperGeodesic(
+            HyperPoint.fromPoincare(new Complex(
+                f[0],
+                f[1],
+            )),
+            HyperPoint.fromPoincare(new Complex(
+                f[2],
+                f[3],
+            )),
+        ));
 
     const singularities: any[] = [];
     for (let i = 0; i < iterations; i++) {
@@ -15,10 +28,16 @@ addEventListener('message', ({data}) => {
     }
 
     singularities.push(...frontier);
+    console.log()
 
     const response = {
         id,
-        singularities,
+        singularities: singularities.map((s: HyperGeodesic) => [
+            s.start.poincare.x,
+            s.start.poincare.y,
+            s.end.poincare.x,
+            s.end.poincare.y,
+        ]),
         stillWorking: false,
     }
 

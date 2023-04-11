@@ -3,7 +3,6 @@ import {HyperbolicModel} from "../hyperbolic/hyperbolic";
 import {Drawable} from "../../graphics/shapes/drawable";
 import {Color} from "../../graphics/shapes/color";
 import {Complex} from "../complex";
-import {BilliardsSettings} from "./billiards";
 
 export abstract class BilliardTable<Point extends PointLike, Geodesic extends GeodesicLike<Point>> {
     static readonly TABLE_FILL = Color.billiardsScheme.tableFill;
@@ -11,9 +10,6 @@ export abstract class BilliardTable<Point extends PointLike, Geodesic extends Ge
     static readonly PATH_THICKNESS = 0.005;
     static readonly TABLE_BORDER_THICKNESS = 0.0075;
     readonly singularities: Drawable[] = [];
-
-    protected constructor(protected readonly settings: BilliardsSettings) {
-    }
 
     // Evaluate an anti-clockwise parametrization of the boundary of the table.
     abstract point(time: number): Point;

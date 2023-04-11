@@ -3,7 +3,7 @@ import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component"
 import * as THREE from 'three';
 import {BufferGeometry, Matrix4, Vector2, Vector3} from 'three';
 import * as dat from 'dat.gui';
-import {Duality, Flavor, Plane} from "../../../math/billiards/billiards";
+import {Duality, Flavor, Plane} from "../../../math/billiards/new-billiard";
 import {NewAffinePolygonTable} from "../../../math/billiards/new-affine-polygon-table";
 import {NewHyperbolicPolygonTable} from "../../../math/billiards/new-hyperbolic-polygon-table"
 import {HyperbolicModel, HyperGeodesic, HyperPoint} from "../../../math/hyperbolic/hyperbolic";
@@ -14,15 +14,16 @@ import {fixTime} from "../../../math/billiards/tables";
 const CLEAR_COLOR = 0x0a2933;
 const FILL_COLOR = 0xf9f4e9;
 const CHORDS_COLOR = 0x000000;
-const OUTER_ORBIT_COLOR = 0x2a9d8f;
-const SINGULARITY_COLOR = 0xe76f51;
-const POINT_COLOR = 0xe76f51;
+const OUTER_ORBIT_COLOR = 0x3adecb;
+const SINGULARITY_COLOR = 0xff7f5e;
+const START_POINT_COLOR = 0x51e76f;
+const END_POINT_COLOR = 0x6f51e7;
 
 // Other constants
 const CAMERA_SPEED_XY = 0.1; // world-space units/second at z=1
 const CAMERA_SPEED_Z = 0.25; // world-space units/second at z=1
 const OUTER_POINT_SPEED = 0.001; // world-space units/second
-const NUM_WORKERS = 1;
+const NUM_WORKERS = 64;
 
 @Component({
     selector: 'new-billiards',
@@ -46,17 +47,17 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     drawParams = {
         model: 'Poincaré',
         singularities: true,
-        singularityIterations: 50,
+        singularityIterations: 100,
         orbit: true,
         orbitPaths: true,
     }
 
     gameParams = {
-        iterations: 12,
+        iterations: 10,
         startTime: 0.123,
         angle: 0.456,
+        tilingPolygon: 0,
     }
-
 
     // When to update stuff
     tableDirty = true;
@@ -73,6 +74,7 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     orbit = new THREE.Object3D();
     singularities = new THREE.Object3D();
     startPoint = new THREE.Mesh();
+    nextPoint = new THREE.Mesh();
 
     // Billiards
     affineTable!: NewAffinePolygonTable;
@@ -86,9 +88,8 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     constructor() {
         super();
 
-
         for (let i = 0; i < NUM_WORKERS; i++) {
-            const worker = new Worker(new URL('./hyper.worker', import.meta.url), {type: "module"});
+            const worker = new Worker(new URL('./hyper.worker', import.meta.url));
             this.hyperWorkers.push(worker);
         }
 
@@ -105,10 +106,13 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
 
         this.hyperbolicDisk = new THREE.Line(diskGeometry, diskMaterial);
 
-        const pointGeometry = new THREE.CircleGeometry(0.025, 32);
-        const pointMaterial = new THREE.MeshBasicMaterial({color: POINT_COLOR});
+        const startPointGeometry = new THREE.CircleGeometry(0.025, 32);
+        const nextPointGeometry = new THREE.CircleGeometry(0.0125, 16);
+        const startPointMaterial = new THREE.MeshBasicMaterial({color: START_POINT_COLOR});
+        const endPointMaterial = new THREE.MeshBasicMaterial({color: END_POINT_COLOR});
 
-        this.startPoint = new THREE.Mesh(pointGeometry, pointMaterial);
+        this.startPoint = new THREE.Mesh(startPointGeometry, startPointMaterial);
+        this.nextPoint = new THREE.Mesh(nextPointGeometry, endPointMaterial);
 
         this.gui = new dat.GUI();
         this.updateGUI();
@@ -122,10 +126,10 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         if (this.keysPressed.get('KeyS')) cameraDiff.y -= 1;
         if (this.keysPressed.get('KeyD')) cameraDiff.x += 1;
         if (cameraDiff.length() !== 0) cameraDiff.normalize();
-        cameraDiff.multiplyScalar(this.camera.position.z * CAMERA_SPEED_XY / 60);
-        if (this.keysPressed.get('Space')) cameraDiff.z += this.camera.position.z * CAMERA_SPEED_Z / 60;
-        if (this.keysPressed.get('ShiftLeft')) cameraDiff.z -= this.camera.position.z * CAMERA_SPEED_Z / 60;
-        this.camera.position.add(cameraDiff);
+        cameraDiff.multiplyScalar(this.perspectiveCamera.position.z * CAMERA_SPEED_XY / 60);
+        if (this.keysPressed.get('Space')) cameraDiff.z += this.perspectiveCamera.position.z * CAMERA_SPEED_Z / 60;
+        if (this.keysPressed.get('ShiftLeft')) cameraDiff.z -= this.perspectiveCamera.position.z * CAMERA_SPEED_Z / 60;
+        this.perspectiveCamera.position.add(cameraDiff);
 
         // Test point
         const pointDiff = new Vector2();
@@ -135,8 +139,9 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         if (this.keysPressed.get('ArrowDown')) pointDiff.y -= 1;
         if (pointDiff.length() === 0) return;
         pointDiff.normalize();
+        if (this.keysPressed.get('AltLeft')) pointDiff.multiplyScalar(0.01);
         if (this.duality === Duality.OUTER) {
-            const startPointDiff = pointDiff.multiplyScalar(OUTER_POINT_SPEED * this.camera.position.z);
+            const startPointDiff = pointDiff.multiplyScalar(OUTER_POINT_SPEED * this.perspectiveCamera.position.z);
             if (this.plane === Plane.AFFINE) {
                 this.affineOuterStart.add(startPointDiff);
                 this.orbitDirty = true;
@@ -158,11 +163,20 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         }
     }
 
+    override ngOnDestroy() {
+        super.ngOnDestroy();
+        this.gui.destroy();
+    }
+
     override frame() {
         this.processKeyboardInput();
 
         if (this.tableDirty) this.updateTable();
         if (this.singularityDirty) this.updateSingularities();
+        if (this.plane === Plane.HYPERBOLIC && this.duality === Duality.OUTER && this.hyperbolicTable.fresh) {
+            this.drawHyperbolicPreimages(this.hyperbolicTable.singularities);
+            this.hyperbolicTable.fresh = false;
+        }
         if (this.orbitDirty) this.updateOrbit();
         if (this.drawDirty) this.updateDraw();
     }
@@ -190,7 +204,10 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         if (this.plane === Plane.HYPERBOLIC) {
             tableFolder.add(this.tableParams, 'radius')
                 .min(0.01).max(2).step(0.01).name('Radius')
-                .onChange(this.updateTableParams.bind(this));
+                .onChange(() => {
+                    this.gameParams.tilingPolygon = 0;
+                    this.updateTableParams();
+                });
         }
         tableFolder.open();
 
@@ -203,13 +220,12 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
             drawFolder.add(this.drawParams, 'singularities').name('Singularities').onFinishChange(
                 this.markDrawDirty.bind(this));
             drawFolder.add(this.drawParams, 'singularityIterations').name('Iterations')
-                .min(0).max(250).step(1)
+                .min(0).max(1000).step(1)
                 .onFinishChange(this.markSingularityDirty.bind(this));
         }
         drawFolder.add(this.drawParams, 'orbitPaths').name('Orbit Paths').onFinishChange(
             this.markOrbitDirty.bind(this));
         drawFolder.open();
-
 
         const gameFolder = this.gui.addFolder('Game');
         if (this.duality === Duality.INNER) {
@@ -225,36 +241,61 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
                 });
         }
         gameFolder.add(this.gameParams, 'iterations')
-            .min(1).max(15).step(1).name('Iterations (log)')
+            .min(1).max(20).step(1).name('Iterations (log)')
             .onChange(() => {
                 this.orbitDirty = true;
             });
+        if (this.duality === Duality.OUTER && this.flavor === Flavor.REGULAR && this.plane === Plane.HYPERBOLIC) {
+            gameFolder.add(this.gameParams, 'tilingPolygon')
+                .min(3).max(20).step(1).name('Tiling').onFinishChange(this.makeTiling.bind(this));
+        }
         gameFolder.open();
 
         this.gui.open();
     }
 
+    makeTiling() {
+        if (!(this.duality === Duality.OUTER && this.flavor === Flavor.REGULAR && this.plane === Plane.HYPERBOLIC)) {
+            return;
+        }
+        const n = this.tableParams.n;
+        const k = this.gameParams.tilingPolygon;
+        const nint = (n - 2) * Math.PI / n;
+        const kint = (k - 2) * Math.PI / k;
+        if (2 * nint + 2 * kint <= 2 * Math.PI) return;
+
+        const kext = 2 * n * Math.PI / k;
+
+        const t = Math.tan(Math.PI / n) * Math.tan(kext / (2 * n));
+        const po = Math.sqrt((1 - t) / (1 + t));
+        const ko = HyperPoint.poincareToKlein(po);
+        const kl = ko * Math.cos(Math.PI / n);
+
+        this.tableParams.radius = HyperPoint.kleinToTrue(kl); // something
+        this.updateBilliardTypeParams();
+    }
+
     updateBilliardTypeParams() {
-        this.updateGUI();
         this.updateTableParams();
     }
 
     updateTableParams() {
+        this.updateGUI();
         this.tableDirty = true;
     }
 
     updateDrawParams() {
         switch (this.plane) {
-            case Plane.AFFINE:
-                this.scene.remove(this.hyperbolicDisk);
-                this.updateTable();
-                break;
-            case Plane.HYPERBOLIC:
-                this.updateTable();
-                this.scene.add(this.hyperbolicDisk);
-                break;
-            default:
-                throw Error('Unknown plane type:' + this.billiardTypeParams.plane);
+        case Plane.AFFINE:
+            this.scene.remove(this.hyperbolicDisk);
+            this.updateTable();
+            break;
+        case Plane.HYPERBOLIC:
+            this.updateTable();
+            this.scene.add(this.hyperbolicDisk);
+            break;
+        default:
+            throw Error('Unknown plane type:' + this.billiardTypeParams.plane);
         }
     }
 
@@ -277,21 +318,21 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         this.scene.remove(this.polygonBorder);
         let vertices: Vector2[];
         switch (this.plane) {
-            case Plane.AFFINE:
-                vertices = this.affinePoints();
-                this.affineTable = new NewAffinePolygonTable(vertices);
-                break;
-            case Plane.HYPERBOLIC:
-                const hyperPoints = this.hyperbolicPoints();
-                this.hyperbolicTable = new NewHyperbolicPolygonTable(hyperPoints);
-                for (let worker of this.hyperWorkers) {
-                    worker.addEventListener('message', this.hyperbolicTable.onWorkerMessage.bind(this.hyperbolicTable));
-                    worker.addEventListener('error', this.hyperbolicTable.onWorkerError.bind(this.hyperbolicTable));
-                }
-                vertices = this.hyperbolicTable.interpolateVertices(this.model);
-                break;
-            default:
-                throw Error('Unknown plane type:' + this.billiardTypeParams.plane);
+        case Plane.AFFINE:
+            vertices = this.affinePoints();
+            this.affineTable = new NewAffinePolygonTable(vertices);
+            break;
+        case Plane.HYPERBOLIC:
+            const hyperPoints = this.hyperbolicPoints();
+            this.hyperbolicTable = new NewHyperbolicPolygonTable(hyperPoints);
+            for (let worker of this.hyperWorkers) {
+                worker.addEventListener('message', this.hyperbolicTable.onWorkerMessage.bind(this.hyperbolicTable));
+                worker.addEventListener('error', this.hyperbolicTable.onWorkerError.bind(this.hyperbolicTable));
+            }
+            vertices = this.hyperbolicTable.interpolateVertices(this.model);
+            break;
+        default:
+            throw Error('Unknown plane type:' + this.billiardTypeParams.plane);
         }
 
         if (this.duality === Duality.INNER && this.singularities) this.scene.remove(this.singularities);
@@ -324,42 +365,53 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         });
         const geometry = new THREE.BufferGeometry();
         switch (this.plane) {
-            case Plane.AFFINE:
-                preimages = this.affineTable.preimages(this.flavor, this.drawParams.singularityIterations);
-                points = [];
-                for (let preimage of preimages) {
-                    points.push(preimage.start);
-                    if (preimage.infinite) {
-                        const diff = preimage.end.clone().sub(preimage.start);
-                        const far = preimage.start.clone().add(diff.normalize().multiplyScalar(100));
-                        points.push(far);
-                    } else {
-                        points.push(preimage.end);
-                    }
+        case Plane.AFFINE:
+            preimages = this.affineTable.preimages(this.flavor, this.drawParams.singularityIterations);
+            points = [];
+            for (let preimage of preimages) {
+                points.push(preimage.start);
+                if (preimage.infinite) {
+                    const diff = preimage.end.clone().sub(preimage.start);
+                    const far = preimage.start.clone().add(diff.normalize().multiplyScalar(100));
+                    points.push(far);
+                } else {
+                    points.push(preimage.end);
                 }
+            }
 
-                geometry.setFromPoints(points);
+            geometry.setFromPoints(points);
 
-                this.singularities = new THREE.LineSegments(geometry, material);
-                break;
-            case Plane.HYPERBOLIC:
-                preimages = this.hyperbolicTable.preimages(this.flavor, this.drawParams.singularityIterations, this.hyperWorkers);
-                points = [];
-                for (let preimage of preimages) {
-                    const preimagePoints = preimage.interpolate(this.model, preimage.start, true).map(c => c.toVector2());
-                    for (let i = 0; i < preimagePoints.length - 1; i++) {
-                        points.push(preimagePoints[i]);
-                        points.push(preimagePoints[i + 1]);
-                    }
-                }
-                geometry.setFromPoints(points);
-                this.singularities = new THREE.LineSegments(geometry, material);
-                break;
-            default:
-                throw Error('Unknown plane');
+            this.singularities = new THREE.LineSegments(geometry, material);
+            break;
+        case Plane.HYPERBOLIC:
+            preimages = this.hyperbolicTable.preimages(this.flavor, this.drawParams.singularityIterations, this.hyperWorkers);
+            this.drawHyperbolicPreimages(preimages);
+            break;
+        default:
+            throw Error('Unknown plane');
         }
 
         this.drawDirty = true;
+    }
+
+    private drawHyperbolicPreimages(preimages: HyperGeodesic[]): void {
+        console.log('drawing', preimages.length, 'preimages');
+        this.scene.remove(this.singularities);
+        const points = [];
+        for (let preimage of preimages) {
+            const preimagePoints = preimage.interpolate(this.model, preimage.start, true).map(c => c.toVector2());
+            for (let i = 0; i < preimagePoints.length - 1; i++) {
+                points.push(preimagePoints[i]);
+                points.push(preimagePoints[i + 1]);
+            }
+        }
+        const material = new THREE.LineBasicMaterial({
+            color: SINGULARITY_COLOR,
+        });
+        const geometry = new THREE.BufferGeometry();
+        geometry.setFromPoints(points);
+        this.singularities = new THREE.LineSegments(geometry, material);
+        if (this.drawParams.singularities) this.scene.add(this.singularities);
     }
 
     updateOrbit() {
@@ -367,117 +419,127 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         this.drawDirty = true;
         this.scene.remove(this.orbit);
         this.scene.remove(this.startPoint);
+        this.scene.remove(this.nextPoint);
         let startPointPosition: Vector2;
+        let nextPointPosition: Vector2;
         let geometry;
         let material;
         switch (this.plane) {
-            case Plane.AFFINE:
-                switch (this.duality) {
-                    case Duality.INNER:
-                        const chords = this.affineTable.iterateInner(
-                            {time: this.gameParams.startTime, angle: this.gameParams.angle * Math.PI},
-                            this.flavor,
-                            this.iterations,
-                        );
-                        if (chords.length === 0) {
-                            this.orbit = new THREE.Object3D();
-                            return;
-                        }
-                        const points = chords.map(chord => chord.p1);
-                        points.push(chords[chords.length - 1].p2);
-
-                        startPointPosition = points[0];
-
-                        geometry = new THREE.BufferGeometry().setFromPoints(points);
-                        material = new THREE.LineBasicMaterial({color: CHORDS_COLOR});
-
-                        this.orbit = new THREE.Line(geometry, material);
-                        break;
-                    case Duality.OUTER:
-                        const orbit = this.affineTable.iterateOuter(this.affineOuterStart, this.flavor, this.iterations);
-                        startPointPosition = orbit[0];
-
-                        if (this.drawParams.orbitPaths) {
-                            geometry = new THREE.BufferGeometry().setFromPoints(orbit);
-                            material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
-                            this.orbit = new THREE.Line(geometry, material);
-                        } else {
-                            geometry = new THREE.CircleGeometry(0.01, 16);
-                            material = new THREE.MeshBasicMaterial({color: OUTER_ORBIT_COLOR});
-                            this.orbit = new THREE.InstancedMesh(geometry, material, orbit.length);
-                            for (let i = 0; i < orbit.length; i++) {
-                                (this.orbit as THREE.InstancedMesh)
-                                    .setMatrixAt(i, new Matrix4().makeTranslation(orbit[i].x, orbit[i].y, 0));
-                            }
-                            (this.orbit as THREE.InstancedMesh).instanceMatrix.needsUpdate = true;
-                        }
-                        break;
-                    default:
-                        throw Error('Unknown duality');
+        case Plane.AFFINE:
+            switch (this.duality) {
+            case Duality.INNER:
+                const chords = this.affineTable.iterateInner(
+                    {time: this.gameParams.startTime, angle: this.gameParams.angle * Math.PI},
+                    this.flavor,
+                    this.iterations,
+                );
+                if (chords.length === 0) {
+                    this.orbit = new THREE.Object3D();
+                    return;
                 }
-                break;
-            case Plane.HYPERBOLIC:
-                let points: Vector2[];
-                switch (this.duality) {
-                    case Duality.INNER:
-                        const chords = this.hyperbolicTable.iterateInner(
-                            {time: this.gameParams.startTime, angle: this.gameParams.angle * Math.PI},
-                            this.flavor,
-                            this.iterations);
-                        points = [];
-                        for (let chord of chords) {
-                            points.push(...chord.interpolate(this.model, chord.start).map(c => c.toVector2()));
-                        }
-                        if (chords.length === 0) {
-                            this.orbit = new THREE.Object3D();
-                            return;
-                        }
-                        geometry = new THREE.BufferGeometry().setFromPoints(points);
-                        material = new THREE.LineBasicMaterial({color: CHORDS_COLOR});
-                        this.orbit = new THREE.Line(geometry, material);
-                        startPointPosition = chords[0].start.resolve(this.model).toVector2();
-                        break;
-                    case Duality.OUTER:
-                        const orbit = this.hyperbolicTable.iterateOuter(this.hyperOuterStart, this.flavor, this.iterations);
-                        startPointPosition = orbit[0].resolve(this.model).toVector2();
+                const points = chords.map(chord => chord.p1);
+                points.push(chords[chords.length - 1].p2);
 
-                        if (this.drawParams.orbitPaths) {
-                            points = [];
-                            for (let i = 0; i < orbit.length - 1; i++) {
-                                const o1 = orbit[i];
-                                const o2 = orbit[i + 1];
-                                const g = new HyperGeodesic(o1, o2);
-                                points.push(...g.interpolate(
-                                    this.model,
-                                    g.start,
-                                    true).map(c => c.toVector2()));
-                            }
-                            geometry = new THREE.BufferGeometry().setFromPoints(points);
-                            material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
-                            this.orbit = new THREE.Line(geometry, material);
-                        } else {
-                            geometry = new THREE.CircleGeometry(0.005, 16);
-                            material = new THREE.MeshBasicMaterial({color: OUTER_ORBIT_COLOR});
-                            this.orbit = new THREE.InstancedMesh(geometry, material, orbit.length);
-                            for (let i = 0; i < orbit.length; i++) {
-                                (this.orbit as THREE.InstancedMesh)
-                                    .setMatrixAt(i, new Matrix4().makeTranslation(
-                                        orbit[i].resolve(this.model).x,
-                                        orbit[i].resolve(this.model).y,
-                                        0));
-                            }
-                            (this.orbit as THREE.InstancedMesh).instanceMatrix.needsUpdate = true;
-                        }
-                        break;
-                    default:
-                        throw Error('Unknown duality');
+                startPointPosition = points[0];
+                nextPointPosition = points[1];
+
+                geometry = new THREE.BufferGeometry().setFromPoints(points);
+                material = new THREE.LineBasicMaterial({color: CHORDS_COLOR});
+
+                this.orbit = new THREE.Line(geometry, material);
+                break;
+            case Duality.OUTER:
+                const orbit = this.affineTable.iterateOuter(this.affineOuterStart, this.flavor, this.iterations);
+                startPointPosition = this.affineOuterStart;
+                nextPointPosition = orbit.length > 1 ? orbit[1] : startPointPosition;
+
+                if (this.drawParams.orbitPaths) {
+                    geometry = new THREE.BufferGeometry().setFromPoints(orbit);
+                    material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
+                    this.orbit = new THREE.Line(geometry, material);
+                } else {
+                    geometry = new THREE.CircleGeometry(0.01, 16);
+                    material = new THREE.MeshBasicMaterial({color: OUTER_ORBIT_COLOR});
+                    this.orbit = new THREE.InstancedMesh(geometry, material, orbit.length);
+                    for (let i = 0; i < orbit.length; i++) {
+                        (this.orbit as THREE.InstancedMesh)
+                            .setMatrixAt(i, new Matrix4().makeTranslation(orbit[i].x, orbit[i].y, 0));
+                    }
+                    (this.orbit as THREE.InstancedMesh).instanceMatrix.needsUpdate = true;
                 }
                 break;
             default:
-                throw Error('Unknown plane');
+                throw Error('Unknown duality');
+            }
+            break;
+        case Plane.HYPERBOLIC:
+            let points: Vector2[];
+            switch (this.duality) {
+            case Duality.INNER:
+                const chords = this.hyperbolicTable.iterateInner(
+                    {time: this.gameParams.startTime, angle: this.gameParams.angle * Math.PI},
+                    this.flavor,
+                    this.iterations);
+                points = [];
+                for (let chord of chords) {
+                    points.push(...chord.interpolate(this.model, chord.start).map(c => c.toVector2()));
+                }
+                if (chords.length === 0) {
+                    this.orbit = new THREE.Object3D();
+                    this.nextPoint = new THREE.Mesh();
+                    return;
+                }
+                geometry = new THREE.BufferGeometry().setFromPoints(points);
+                material = new THREE.LineBasicMaterial({color: CHORDS_COLOR});
+                this.orbit = new THREE.Line(geometry, material);
+                startPointPosition = chords[0].start.resolve(this.model).toVector2();
+                nextPointPosition = chords[0].end.resolve(this.model).toVector2();
+                break;
+            case Duality.OUTER:
+                const orbit = this.hyperbolicTable.iterateOuter(this.hyperOuterStart, this.flavor, this.iterations);
+                startPointPosition = this.hyperOuterStart.resolve(this.model).toVector2();
+                if (orbit.length > 1) nextPointPosition = orbit[1].resolve(this.model).toVector2();
+                else nextPointPosition = orbit[0].resolve(this.model).toVector2();
+
+                if (this.drawParams.orbitPaths) {
+                    points = [];
+                    for (let i = 0; i < orbit.length - 1; i++) {
+                        const o1 = orbit[i];
+                        const o2 = orbit[i + 1];
+                        const g = new HyperGeodesic(o1, o2);
+                        points.push(...g.interpolate(
+                            this.model,
+                            g.start,
+                            true).map(c => c.toVector2()));
+                    }
+                    geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
+                    this.orbit = new THREE.Line(geometry, material);
+                } else {
+                    geometry = new THREE.CircleGeometry(0.005, 16);
+                    material = new THREE.MeshBasicMaterial({color: OUTER_ORBIT_COLOR});
+                    this.orbit = new THREE.InstancedMesh(geometry, material, orbit.length);
+                    for (let i = 0; i < orbit.length; i++) {
+                        (this.orbit as THREE.InstancedMesh)
+                            .setMatrixAt(i, new Matrix4().makeTranslation(
+                                orbit[i].resolve(this.model).x,
+                                orbit[i].resolve(this.model).y,
+                                0));
+                    }
+                    (this.orbit as THREE.InstancedMesh).instanceMatrix.needsUpdate = true;
+                }
+                break;
+            default:
+                throw Error('Unknown duality');
+            }
+            break;
+        default:
+            throw Error('Unknown plane');
         }
         this.startPoint.translateX(startPointPosition.x - this.startPoint.position.x);
         this.startPoint.translateY(startPointPosition.y - this.startPoint.position.y);
+        this.nextPoint.translateX(nextPointPosition.x - this.nextPoint.position.x);
+        this.nextPoint.translateY(nextPointPosition.y - this.nextPoint.position.y);
 
         this.drawDirty = true;
     }
@@ -493,6 +555,7 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
 
         if (this.drawParams.orbit) this.scene.add(this.orbit);
         this.scene.add(this.startPoint);
+        this.scene.add(this.nextPoint);
     }
 
     get plane(): Plane {

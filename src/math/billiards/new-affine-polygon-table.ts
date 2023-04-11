@@ -1,13 +1,13 @@
 import {Vector2} from "three";
-import {Flavor} from "./billiards";
+import {Flavor} from "./new-billiard";
 import {LineSegment} from "../geometry/line-segment";
 import {Complex} from "../complex";
 import {fixTime} from "./tables";
 import {Line} from "../geometry/line";
 import {closeEnough, normalizeAngle} from "../math-helpers";
 
-const SYMPLECTIC_PREIMAGE_PIECES = 100;
-const SYMPLECTIC_PREIMAGE_LENGTH = 5;
+const SYMPLECTIC_PREIMAGE_PIECES = 400;
+const SYMPLECTIC_PREIMAGE_LENGTH = 10;
 
 export type AffineInnerState = {
     time: number;
@@ -271,7 +271,6 @@ export class NewAffinePolygonTable {
                     try {
                         newPoint = this.outerRegular(point);
                     } catch (e) {
-                        console.error(e);
                         return points;
                     }
                     break;
@@ -279,7 +278,6 @@ export class NewAffinePolygonTable {
                     try {
                         newPoint = this.outerSymplectic(point);
                     } catch (e) {
-                        console.error(e);
                         return points;
                     }
                     break;
@@ -312,7 +310,7 @@ export class NewAffinePolygonTable {
             const s3 = v3.clone().sub(v2);
             const d1 = point.clone().sub(v1);
             const d2 = point.clone().sub(v2);
-            if (s2.cross(d1) < 0 && s3.cross(d2) > 0) return v2;
+            if (s2.cross(d1) <= 0 && s3.cross(d2) >= 0) return v2;
         }
         throw Error('Point is not in domain of forward map');
     }
@@ -326,7 +324,7 @@ export class NewAffinePolygonTable {
             const s3 = v3.clone().sub(v2);
             const d2 = point.clone().sub(v2);
             const d3 = point.clone().sub(v3);
-            if (s2.cross(d2) > 0 && s3.cross(d3) < 0) return v2;
+            if (s2.cross(d2) >= 0 && s3.cross(d3) <= 0) return v2;
         }
         throw Error('Point is not in domain of backward map');
     }
@@ -448,7 +446,7 @@ export class NewAffinePolygonTable {
         if (intersections.length === 0) return [preimage];
         let bufferDiff = new Vector2();
         if (buffer) {
-            bufferDiff = preimage.end.clone().sub(preimage.start).normalize().multiplyScalar(0.000_001);
+            bufferDiff = preimage.end.clone().sub(preimage.start).normalize().multiplyScalar(0.000_000_001);
         }
 
         const pieces = [];
@@ -508,7 +506,7 @@ export class NewAffinePolygonTable {
                         // If far away, skip
                         if (mid.lengthSq() > 100) continue;
                         // If tiny, skip
-                        if (piece.start.distanceToSquared(piece.end) < 0.000_000_01) continue;
+                        if (piece.start.distanceTo(piece.end) < 0.000_001) continue;
                         newFrontier.push(
                             new AffineRay(
                                 this.outerSymplectic(piece.start, true),

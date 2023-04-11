@@ -100,14 +100,14 @@ export class ArcRegion {
         return vertices;
     }
 
-    shatter(slices: Segment[]): ArcRegion[] {
-        let regions: ArcRegion[] = [this];
-        for (let slice of slices) {
-            console.log(regions);
-            regions = regions.flatMap(r => r.shatterOnce(slice));
-        }
-        return regions;
-    }
+    // shatter(slices: Segment[]): ArcRegion[] {
+    //     let regions: ArcRegion[] = [this];
+    //     for (let slice of slices) {
+    //         console.log(regions);
+    //         regions = regions.flatMap((r: ArcRegion) => r.shatterOnce(slice));
+    //     }
+    //     return regions;
+    // }
 
     private shatterOnce(slice: Segment): ArcRegion[] {
         const splitSegments: Segment[] = [];
@@ -148,12 +148,12 @@ export class ArcRegion {
         const graph = new PlanarGraph(splitSegments);
         const regions: ArcRegion[] = graph.shatter().map((segments: Segment[]) => new ArcRegion(segments));
         return regions.filter(r => {
-           let good = true;
-           for (let s of this.segments) {
-               if (r.segments.indexOf(s) !== -1) continue;
-               if (r.containsPoint(s.mid)) good = false;
-           }
-           return good;
+            let good = true;
+            for (let s of this.segments) {
+                if (r.segments.indexOf(s) !== -1) continue;
+                if (r.containsPoint(s.mid)) good = false;
+            }
+            return good;
         });
     }
 
