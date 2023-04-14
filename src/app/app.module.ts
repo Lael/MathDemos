@@ -29,8 +29,13 @@ import {LinkTileComponent} from './home-page/link-tile/link-tile.component';
 import {NewBilliardsComponent} from "./demos/new-billiards/new-billiards.component";
 import {TilingComponent} from "./demos/tiling/tiling.component";
 import {PoincareComponent} from "./demos/poincare/poincare.component";
+import {SymplecticComponent} from "./demos/symplectic/symplectic.component";
+import {BilliardsUnfoldingComponent} from "./demos/unfolding/billiards-unfolding.component";
+import {UnfoldingComponent} from "./demos/unfolding/unfolding.component";
+import {PolygonPickerComponent} from "./demos/unfolding/polygon-picker.component";
 
 @NgModule({
+    bootstrap: [AppComponent],
     declarations: [
         AppComponent,
         HomePageComponent,
@@ -48,6 +53,10 @@ import {PoincareComponent} from "./demos/poincare/poincare.component";
         NewBilliardsComponent,
         TilingComponent,
         PoincareComponent,
+        SymplecticComponent,
+        BilliardsUnfoldingComponent,
+        UnfoldingComponent,
+        PolygonPickerComponent,
     ],
     imports: [
         BrowserModule,
@@ -64,8 +73,7 @@ import {PoincareComponent} from "./demos/poincare/poincare.component";
         MatIconModule,
         MatButtonToggleModule,
     ],
-    providers: [],
-    bootstrap: [AppComponent]
+    providers: []
 })
 export class AppModule {
 }

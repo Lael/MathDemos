@@ -6,3 +6,5 @@ export const PENTAGRAM_PATH = 'pentagram';
 export const MOBIUS_PATH = 'mobius';
 export const TILING_PATH = 'tiling';
 export const POINCARE_PATH = 'poincare';
+export const SYMPLECTIC_PATH = 'symplectic';
+export const UNFOLDING_PATH = 'unfolding';

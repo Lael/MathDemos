@@ -31,7 +31,7 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         window.addEventListener('resize', this.onWindowResize.bind(this));
 
         const aspect = window.innerWidth / window.innerHeight;
-        this.perspectiveCamera = new THREE.PerspectiveCamera(36, aspect, 0.25, 1000);
+        this.perspectiveCamera = new THREE.PerspectiveCamera(36, aspect, 0.25, 2000);
         this.perspectiveCamera.position.set(0, 0, 10);
 
         this.orthographicCamera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1);
