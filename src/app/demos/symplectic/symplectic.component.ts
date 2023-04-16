@@ -60,7 +60,7 @@ type SymplecticParams = {
 
 @Component({
     selector: 'symplectic',
-    template: '',
+    templateUrl: '../../widgets/three-demo/three-demo.component.html',
     styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
 })
 export class SymplecticComponent extends ThreeDemoComponent {
@@ -406,10 +406,10 @@ export class SymplecticComponent extends ThreeDemoComponent {
                 break;
             }
             ballGeometry.translate(points[0].x, points[0].y, points[0].z);
-            // const dotGeometry = new BufferGeometry().setFromPoints(points);
-            // const dotMaterial = new PointsMaterial({size: 2, sizeAttenuation: false});
-            // const dots = new Points(dotGeometry, dotMaterial);
-            // this.scene.add(dots);
+            const dotGeometry = new BufferGeometry().setFromPoints(points);
+            const dotMaterial = new PointsMaterial({size: 2, sizeAttenuation: false});
+            const dots = new Points(dotGeometry, dotMaterial);
+            this.scene.add(dots);
         } else {
             const points: Vector2[] = [];
             switch (this.params.projection2D) {
@@ -438,6 +438,13 @@ export class SymplecticComponent extends ThreeDemoComponent {
                 axesHelper.setColors(zColor, wColor, white);
                 break;
             }
+            const pointGeo = new SphereGeometry(0.03);
+            const instancedMesh = new InstancedMesh(pointGeo, new MeshBasicMaterial({color: new Color(0xffffff)}), points.length);
+            for (let i = 0; i < points.length; i++) {
+                instancedMesh.setMatrixAt(i, new Matrix4().makeTranslation(points[i].x, points[i].y, 0));
+            }
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            this.scene.add(instancedMesh);
             ballGeometry.translate(points[0].x, points[0].y, 0);
             const dotGeometry = new BufferGeometry().setFromPoints(points);
             const dotMaterial = new PointsMaterial({size: 1, sizeAttenuation: false});

@@ -23,6 +23,7 @@
     "@material/button": "^13.0.0",
     "@types/stats": "^0.16.30",
     "@types/three": "^0.138.0",
+    "chart.js": "^4.2.1",
     "rxjs": "~7.5.0",
     "three": "^0.138.3",
     "tslib": "^2.3.0",

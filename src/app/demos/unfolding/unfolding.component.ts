@@ -1,111 +1,51 @@
-import {Component} from "@angular/core";
+import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
-import {
-    AxesHelper,
-    BufferGeometry,
-    Color,
-    Mesh,
-    MeshBasicMaterial,
-    Points,
-    PointsMaterial,
-    SphereGeometry,
-    Vector2,
-    Vector3,
-    Vector4
-} from 'three';
-import * as dat from 'dat.gui';
-import {closeEnough} from "../../../math/math-helpers";
-import {clamp} from "three/src/math/MathUtils";
-import {ParametricGeometry} from "three/examples/jsm/geometries/ParametricGeometry";
+import {BufferGeometry, Color, LineBasicMaterial, LineSegments, Vector2, Vector3} from "three";
+import {UnfoldingData} from "./billiards-unfolding.component";
 
-// Colors
-const CLEAR_COLOR = new Color(0x000000);
+type UnfoldingResult = {
+    vertices: Vector2[];
+    reflectedSideIndex: number;
+    reflectedSideProportion: number;
+    angle: number;
+    nonGenericError: boolean;
+};
 
+const CLEAR_COLOR = new Color(0x123456);
+const INITIAL_COLOR = new Color(0xaaffcc);
+const LINE_COLOR = new Color(0xffffff);
+const AXIS_COLOR = new Color(0xff0000);
 
-// Other constants
 const CAMERA_SPEED_XY = 1; // world-space units/second at z=1
 const CAMERA_SPEED_Z = 0.5; // world-space units/second at z=1
 
-enum Projection3D {
-    X1 = 'x_1',
-    X2 = 'x_2',
-    Y1 = 'y_1',
-    Y2 = 'y_2',
-}
-
-enum Projection2D {
-    X1X2 = 'x_1, x_2',
-    X1Y1 = 'x_1, y_1',
-    X1Y2 = 'x_1, y_2',
-    X2Y1 = 'x_2, y_1',
-    X2Y2 = 'x_2, y_2',
-    Y1Y2 = 'y_1, y_2',
-}
-
-type SymplecticParams = {
-    use3D: boolean;
-    projection2D: Projection2D;
-    projection3D: Projection3D;
-    iterations: number;
-    forward: boolean;
-    backward: boolean;
-};
-
 
 @Component({
-    selector: 'symplectic',
-    template: '',
+    selector: 'unfolding',
+    templateUrl: '../../widgets/three-demo/three-demo.component.html',
     styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
 })
-export class UnfoldingComponent extends ThreeDemoComponent {
-    gui: dat.GUI = new dat.GUI();
+export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges {
+    private dirty = true;
 
-    cameraDist = 5;
-    cameraTheta = Math.PI / 4;
-    cameraPhi = Math.PI / 4;
+    @Input()
+    vertices: Vector2[] = [new Vector2(1, -1), new Vector2(0, 1), new Vector2(-1, -1), new Vector2(0, -1.5)];
 
-    params: SymplecticParams = {
-        use3D: false,
-        projection2D: Projection2D.X1X2,
-        projection3D: Projection3D.Y2,
-        iterations: 10000,
-        forward: true,
-        backward: true,
-    };
+    @Input()
+    iterations: number = 100;
 
-    start = new Vector4(0.01, 0.02, 0.03, 0.04);
-    orbit: Vector4[] = [];
+    @Output() data = new EventEmitter<UnfoldingData[]>();
 
-    drawDirty = true;
+    ngOnChanges(_: SimpleChanges) {
+        this.dirty = true;
+    }
 
     constructor() {
         super();
-
-        // this.useOrthographic = true;
-        this.updateCamera();
-        this.perspectiveCamera.fov = 60;
-        this.perspectiveCamera.updateProjectionMatrix();
-
+        this.useOrthographic = true;
+        this.orthographicDiagonal = 3;
+        this.updateOrthographicCamera();
         this.renderer.setClearColor(CLEAR_COLOR);
-
-        this.updateGUI();
-        this.computeOrbit();
-    }
-
-    private updateCamera() {
-        if (this.params.use3D) {
-            this.useOrthographic = false;
-            this.perspectiveCamera.position.set(
-                this.cameraDist * Math.cos(this.cameraPhi) * Math.cos(this.cameraTheta),
-                this.cameraDist * Math.cos(this.cameraPhi) * Math.sin(this.cameraTheta),
-                this.cameraDist * Math.sin(this.cameraPhi),
-            );
-            this.perspectiveCamera.lookAt(0, 0, 0);
-            this.perspectiveCamera.up.set(0, 0, 1);
-        } else {
-            this.useOrthographic = true;
-            this.updateOrthographicCamera();
-        }
     }
 
     private processKeyboardInput(dt: number): void {
@@ -116,315 +56,128 @@ export class UnfoldingComponent extends ThreeDemoComponent {
         if (this.keysPressed.get('KeyS')) cameraDiff.y -= 1;
         if (this.keysPressed.get('KeyD')) cameraDiff.x += 1;
         if (cameraDiff.length() !== 0) cameraDiff.normalize();
-        if (this.params.use3D) {
-            this.cameraTheta += CAMERA_SPEED_XY * dt * cameraDiff.x;
-            this.cameraPhi += CAMERA_SPEED_XY * dt * cameraDiff.y;
-            this.cameraPhi = clamp(this.cameraPhi, -Math.PI * 0.49, Math.PI * 0.49);
-        } else {
-            this.orthographicCamera.position.x += CAMERA_SPEED_XY * dt * cameraDiff.x * this.orthographicDiagonal;
-            this.orthographicCamera.position.y += CAMERA_SPEED_XY * dt * cameraDiff.y * this.orthographicDiagonal;
-        }
+        this.orthographicCamera.position.x += CAMERA_SPEED_XY * dt * cameraDiff.x * this.orthographicDiagonal;
+        this.orthographicCamera.position.y += CAMERA_SPEED_XY * dt * cameraDiff.y * this.orthographicDiagonal;
 
         let zoomDiff = 1;
         if (this.keysPressed.get('Space')) zoomDiff += CAMERA_SPEED_Z * dt;
         if (this.keysPressed.get('ShiftLeft')) zoomDiff -= CAMERA_SPEED_Z * dt;
-        if (this.params.use3D) {
-            this.cameraDist *= zoomDiff;
-        } else {
-            this.orthographicDiagonal *= zoomDiff;
-        }
-        this.updateCamera();
+        this.orthographicDiagonal *= zoomDiff;
+        this.updateOrthographicCamera();
     }
 
     override frame(dt: number) {
         this.processKeyboardInput(dt);
-        if (this.drawDirty) {
-            this.drawOrbit();
-            this.updateCamera();
-            this.drawDirty = false;
+        if (this.dirty) {
+            this.dirty = false;
+            this.unfold();
         }
     }
 
-    override ngOnDestroy() {
-        super.ngOnDestroy();
-        this.gui.destroy();
-    }
-
-    markDrawDirty(): void {
-        this.drawDirty = true;
-        this.updateGUI();
-    }
-
-    updateGUI() {
-        this.gui.destroy();
-        this.gui = new dat.GUI();
-
-        const viewFolder = this.gui.addFolder('View');
-        viewFolder.add(this.params, 'use3D')
-            .name('3D').onFinishChange(this.markDrawDirty.bind(this));
-        if (this.params.use3D) {
-            viewFolder.add(this.params, 'projection3D', Object.values(Projection3D))
-                .name('Project along').onFinishChange(this.markDrawDirty.bind(this));
-        } else {
-            viewFolder.add(this.params, 'projection2D', Object.values(Projection2D))
-                .name('Project onto').onFinishChange(this.markDrawDirty.bind(this));
-        }
-        viewFolder.open();
-
-        const MIN = -1;
-        const MAX = 1;
-
-        const gameFolder = this.gui.addFolder('Game');
-        gameFolder.add(this.params, 'forward')
-            .name('Forward').onFinishChange(this.computeOrbit.bind(this));
-        gameFolder.add(this.params, 'backward')
-            .name('Reverse').onFinishChange(this.computeOrbit.bind(this));
-        gameFolder.add(this.params, 'iterations')
-            .name('Iterations').onFinishChange(this.computeOrbit.bind(this));
-        gameFolder.add(this.start, 'x')
-            .name('x_1').min(MIN).max(MAX)
-            .onChange(this.computeOrbit.bind(this));
-        gameFolder.add(this.start, 'y')
-            .name('x_2').min(MIN).max(MAX)
-            .onChange(this.computeOrbit.bind(this));
-        gameFolder.add(this.start, 'z')
-            .name('y_1').min(MIN).max(MAX)
-            .onChange(this.computeOrbit.bind(this));
-        gameFolder.add(this.start, 'w')
-            .name('y_2').min(MIN).max(MAX)
-            .onChange(this.computeOrbit.bind(this));
-        gameFolder.open();
-
-        this.gui.open();
-    }
-
-    computeOrbit() {
-        this.updateGUI();
-        this.orbit = [this.start];
-        this.drawDirty = true;
-        let sp: Vector4;
-        let sm: Vector4;
-        try {
-            [sp, sm] = [...this.nextPoint(this.start)];
-        } catch (e) {
-            console.error(e);
-            return;
-        }
-        // arbitrarily designate sp as the ''forward'' direction
-        let prev = this.start.clone();
-        let current = sp;
-
-        for (let i = 0; i < this.params.iterations; i++) {
-            this.orbit.push(current);
-            try {
-                [sp, sm] = [...this.nextPoint(current)];
-            } catch (e) {
-                console.error(e);
-                return;
-            }
-            const dp = sp.clone().sub(current).lengthSq();
-            const dm = sm.clone().sub(current).lengthSq();
-            let next;
-            if (dm < dp) {
-                next = sp;
-            } else {
-                next = sm;
-            }
-            prev = current;
-            current = next;
-        }
-
-        if (!this.params.forward) return;
-
-        [sp, sm] = [...this.nextPoint(this.start)];
-
-        prev = this.start.clone();
-        current = sm;
-
-        for (let i = 0; i < this.params.iterations; i++) {
-            this.orbit.push(current);
-            try {
-                [sp, sm] = [...this.nextPoint(current)];
-            } catch (e) {
-                console.error(e);
-                return;
-            }
-            const dp = sp.clone().sub(current).lengthSq();
-            const dm = sm.clone().sub(current).lengthSq();
-            let next;
-            if (dm < dp) {
-                next = sp;
-            } else {
-                next = sm;
-            }
-            prev = current;
-            current = next;
-        }
-    }
-
-
-    nextPoint(vec: Vector4): Vector4[] {
-        const x1 = vec.x;
-        const x2 = vec.y;
-        const y1 = vec.z;
-        const y2 = vec.w;
-
-        if (closeEnough(y1, x2 * x2 + 2 * x1 * x2) &&
-            closeEnough(y2, x1 * x1 + 2 * x1 * x2)) {
-            throw Error(`Point on singular manifold: (${x1}, ${x2}, ${y1}, ${y2})`);
-        }
-
-        const k1 = (x1 + x2) * (x1 + x2) - x1 * x1 - y1;
-        const k2 = (x1 + x2) * (x1 + x2) - x2 * x2 - y2;
-
-        const aSquared = ((2 * k2 - 4 * k1) + Math.sqrt((4 * k1 - 2 * k2) * (4 * k1 - 2 * k2) + 12 * k2 * k2)) / 6;
-
-        const ap = Math.sqrt(aSquared);
-        const am = -ap;
-        let bp: number;
-        if (am === 0) {
-            bp = Math.sqrt(k1);
-        } else {
-            bp = 2 * k1 * ap / (3 * aSquared + k2);
-        }
-        const bm = -bp;
-
-        // a = q1 - x1 => q1 = a + x1
-        // b = q2 - x2 => q2 = b + x2
-        const q1p = ap + x1;
-        const q2p = bp + x2;
-        const q1m = am + x1;
-        const q2m = bm + x2;
-
-        // X_1 = 2q_1 - x_1
-        // X_2 = 2q_2 - x_2
-        // Y_1 = 4 q_1 q_2 + 2 (q_2)^2 - y_1
-        // Y_2 = 2 (q_1)^2 + 4 q_1 q_2 - y_2
-        const sp = new Vector4(
-            2 * q1p - x1,
-            2 * q2p - x2,
-            4 * q1p * q2p + 2 * q2p * q2p - y1,
-            2 * q1p * q1p + 4 * q1p * q2p - y2,
-        );
-
-        const sm = new Vector4(
-            2 * q1m - x1,
-            2 * q2m - x2,
-            4 * q1m * q2m + 2 * q2m * q2m - y1,
-            2 * q1m * q1m + 4 * q1m * q2m - y2,
-        );
-
-        this.confirmSolution(vec, q1p, q2p);
-        this.confirmSolution(vec, q1m, q2m);
-
-        return [sp, sm];
-    }
-
-    private confirmSolution(vec: Vector4, q1: number, q2: number) {
-        const x1 = vec.x;
-        const x2 = vec.y;
-        const y1 = vec.z;
-        const y2 = vec.w;
-
-        const a = q1 - x1;
-        const b = q2 - x2;
-
-        const eq1 = closeEnough((a + b) * (a + b) - a * a, (x1 + x2) * (x1 + x2) - x1 * x1 - y1);
-        const eq2 = closeEnough((a + b) * (a + b) - b * b, (x1 + x2) * (x1 + x2) - x2 * x2 - y2);
-        if (!eq1 || !eq2) throw Error(`Bad solution: (${x1}, ${x2}, ${y1}, ${y2}), (${q1}, ${q2})`);
-    }
-
-    drawOrbit() {
-        const xColor = new Color(0xff0000);
-        const yColor = new Color(0x00ff00);
-        const zColor = new Color(0x0000ff);
-        const wColor = new Color(0xff00ff);
-        const white = new Color(0xffffff);
+    unfold() {
         this.scene.clear();
-        const axesHelper = new AxesHelper(1);
-        const ballGeometry = new SphereGeometry(0.02);
-        let lGeometry;
-        const lMaterial = new MeshBasicMaterial({color: 0x00ff00, wireframe: true});
-        let lMesh;
-        if (this.params.use3D) {
-            const points: Vector3[] = [];
-            switch (this.params.projection3D) {
-            case Projection3D.X1:
-                for (let point of this.orbit) points.push(new Vector3(point.y, point.z, point.w));
-                axesHelper.setColors(yColor, zColor, wColor);
-                break;
-            case Projection3D.X2:
-                for (let point of this.orbit) points.push(new Vector3(point.x, point.z, point.w));
-                axesHelper.setColors(xColor, zColor, wColor);
-                break;
-            case Projection3D.Y1:
-                for (let point of this.orbit) points.push(new Vector3(point.x, point.y, point.w));
-                axesHelper.setColors(xColor, yColor, wColor);
-                lGeometry = new ParametricGeometry((u, v, target) => {
-                    const x1 = u - 0.5 * 20;
-                    const x2 = v - 0.5 * 20;
-                    const y2 = x1 * x1 + 2 * x1 * x2;
-                    target.set(x1, x2, y2);
-                }, 100, 100);
-                lMesh = new Mesh(lGeometry, lMaterial);
-                this.scene.add(lMesh);
-                break;
-            case Projection3D.Y2:
-                for (let point of this.orbit) points.push(new Vector3(point.x, point.y, point.z));
-                axesHelper.setColors(xColor, yColor, zColor);
-                lGeometry = new ParametricGeometry((u, v, target) => {
-                    const x1 = u - 0.5 * 20;
-                    const x2 = v - 0.5 * 20;
-                    const y1 = x2 * x2 + 2 * x1 * x2;
-                    target.set(x1, x2, y1);
-                }, 100, 100);
-                lMesh = new Mesh(lGeometry, lMaterial);
-                this.scene.add(lMesh);
-                break;
-            }
-            ballGeometry.translate(points[0].x, points[0].y, points[0].z);
-            const dotGeometry = new BufferGeometry().setFromPoints(points);
-            const dotMaterial = new PointsMaterial({size: 1, sizeAttenuation: false});
-            const dots = new Points(dotGeometry, dotMaterial);
-            this.scene.add(dots);
-        } else {
-            const points: Vector2[] = [];
-            switch (this.params.projection2D) {
-            case Projection2D.X1X2:
-                for (let point of this.orbit) points.push(new Vector2(point.x, point.y));
-                axesHelper.setColors(xColor, yColor, white);
-                break;
-            case Projection2D.X1Y1:
-                for (let point of this.orbit) points.push(new Vector2(point.x, point.z));
-                axesHelper.setColors(xColor, zColor, white);
-                break;
-            case Projection2D.X1Y2:
-                for (let point of this.orbit) points.push(new Vector2(point.x, point.w));
-                axesHelper.setColors(xColor, wColor, white);
-                break;
-            case Projection2D.X2Y1:
-                for (let point of this.orbit) points.push(new Vector2(point.y, point.z));
-                axesHelper.setColors(yColor, zColor, white);
-                break;
-            case Projection2D.X2Y2:
-                for (let point of this.orbit) points.push(new Vector2(point.y, point.w));
-                axesHelper.setColors(yColor, wColor, white);
-                break;
-            case Projection2D.Y1Y2:
-                for (let point of this.orbit) points.push(new Vector2(point.z, point.w));
-                axesHelper.setColors(zColor, wColor, white);
-                break;
-            }
-            ballGeometry.translate(points[0].x, points[0].y, 0);
-            const dotGeometry = new BufferGeometry().setFromPoints(points);
-            const dotMaterial = new PointsMaterial({size: 1, sizeAttenuation: false});
-            const dots = new Points(dotGeometry, dotMaterial);
-            this.scene.add(dots);
+        let vertices = this.vertices;
+
+        const axisGeometry = new BufferGeometry();
+        axisGeometry.setFromPoints([new Vector2(-100, 0), new Vector2(100000, 0)]);
+        const axis = new LineSegments(axisGeometry, new LineBasicMaterial({color: AXIS_COLOR.getHex()}));
+        this.scene.add(axis);
+
+        const initPoints = [];
+        for (let i = 0; i < vertices.length; i++) {
+            initPoints.push(vertices[i], vertices[(i + 1) % vertices.length]);
         }
-        this.scene.add(axesHelper);
-        // show the starting point
-        const ballMaterial = new MeshBasicMaterial({color: new Color(0xaa0044)});
-        const ball = new Mesh(ballGeometry, ballMaterial);
-        this.scene.add(ball);
+        const initGeometry = new BufferGeometry();
+        initGeometry.setFromPoints(initPoints);
+        this.scene.add(new LineSegments(initGeometry, new LineBasicMaterial({
+            color: INITIAL_COLOR.getHex(),
+        })));
+
+
+        let graphRes = Math.pow(10,
+            Math.max(0, Math.floor(Math.log10(this.iterations) - 1)));
+
+        const data: UnfoldingData[] = [{step: 0, aSides: 0, bSides: 0, distinctAngles: 0}];
+        const points = [];
+        let aSides = 0;
+        let bSides = 0;
+        const angles = new Set<string>();
+        for (let i = 0; i < this.iterations; i++) {
+            const result = this.iterate(vertices);
+            if (result.nonGenericError) break;
+            vertices = result.vertices;
+            for (let i = 0; i < vertices.length; i++) {
+                points.push(vertices[i], vertices[(i + 1) % vertices.length]);
+            }
+            if (result.reflectedSideIndex === 0) aSides += (i % 2) * 2 - 1;
+            if (result.reflectedSideIndex === 1) bSides += ((i + 1) % 2) * 2 - 1;
+            angles.add(
+                Math.round(result.angle * 1_000_000_000).toString()
+            );
+            if ((i + 1) % graphRes === 0) data.push({step: i + 1, aSides, bSides, distinctAngles: angles.size});
+        }
+
+        const geometry = new BufferGeometry();
+        geometry.setFromPoints(points);
+
+        const unfoldMat = new LineBasicMaterial({
+            color: LINE_COLOR.getHex(),
+        });
+
+        const unfold = new LineSegments(geometry, unfoldMat);
+        this.scene.add(unfold);
+        this.data.emit(data);
     }
+
+    iterate(vertices: Vector2[]): UnfoldingResult {
+        for (let v of vertices) {
+            if (v.y === 0) {
+                return {
+                    vertices: [],
+                    reflectedSideIndex: -1,
+                    reflectedSideProportion: 0,
+                    angle: 0,
+                    nonGenericError: true,
+                };
+            }
+        }
+        let bestX = Number.NEGATIVE_INFINITY;
+        let bestI = -1;
+        let bestProportion = -1;
+        for (let i = 0; i < vertices.length; i++) {
+            const vi = vertices[i];
+            const vj = vertices[(i + 1) % vertices.length];
+            if (Math.sign(vi.y) * Math.sign(vj.y) !== -1) continue;
+            const proportion = Math.abs(vi.y / (vj.y - vi.y));
+            const x = vi.x + proportion * (vj.x - vi.x);
+            if (x > bestX) {
+                bestX = x;
+                bestI = i;
+                bestProportion = proportion;
+            }
+        }
+        const vi = vertices[bestI];
+        const vj = vertices[(bestI + 1) % vertices.length];
+        const newVertices = vertices.map(v => reflectOver(vi, vj, v));
+        return {
+            vertices: newVertices,
+            reflectedSideIndex: bestI,
+            reflectedSideProportion: bestProportion,
+            angle: vj?.clone().sub(vi).angle() || 0,
+            nonGenericError: false,
+        };
+    }
+}
+
+function reflectOver(l1: Vector2, l2: Vector2, p: Vector2): Vector2 {
+    // project l1p onto l2
+    // set perp = l1p - proj
+    // return p - 2 * perp
+    const l1p = p.clone().sub(l1);
+    const l1l2 = l2.clone().sub(l1);
+    const parallel = l1l2.clone().multiplyScalar(
+        l1p.dot(l1l2) / l1l2.dot(l1l2)
+    );
+    const perp = l1p.clone().sub(parallel);
+    return p.clone().sub(perp.multiplyScalar(2));
 }

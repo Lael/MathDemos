@@ -48,7 +48,7 @@ const PHI = (Math.sqrt(5) + 1) / 2;
 
 @Component({
     selector: 'tile',
-    template: '',
+    templateUrl: '../../widgets/three-demo/three-demo.component.html',
     styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
 })
 export class TilingComponent extends ThreeDemoComponent {

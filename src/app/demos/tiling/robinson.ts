@@ -207,7 +207,6 @@ export class Penrose2 extends PenroseTiling {
             tileType: TileType.KITE,
             tilePosition: new TilePosition(polar(1, 9.5 * PI5), 6.5 * PI5)
         });
-        // TODO: edges
     }
 
     private setDeuce() {
@@ -227,7 +226,6 @@ export class Penrose2 extends PenroseTiling {
             tileType: TileType.KITE,
             tilePosition: new TilePosition(new Vector2(), 9.5 * PI5)
         });
-        // TODO: edges
     }
 
     private setJack() {
@@ -253,7 +251,6 @@ export class Penrose2 extends PenroseTiling {
             tileType: TileType.KITE,
             tilePosition: new TilePosition(polar(PHI, 8.5 * PI5), 3.5 * PI5)
         });
-        // TODO: edges
     }
 
     private setQueen() {
@@ -279,7 +276,6 @@ export class Penrose2 extends PenroseTiling {
             tileType: TileType.KITE,
             tilePosition: new TilePosition(polar(1, 5.5 * PI5), 8.5 * PI5)
         });
-        // TODO: edges
     }
 
     private setKing() {
@@ -305,7 +301,6 @@ export class Penrose2 extends PenroseTiling {
             tileType: TileType.KITE,
             tilePosition: new TilePosition(polar(1, 7.5 * PI5), 4.5 * PI5)
         });
-        // TODO: edges
     }
 
     // private addSubEdges(edge: GraphEdge<TileAdjacency>,

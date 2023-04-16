@@ -1,4 +1,4 @@
-import {AfterViewInit, Component, OnDestroy} from '@angular/core';
+import {AfterViewInit, Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import * as THREE from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module'
 
@@ -15,7 +15,12 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
 
+    @ViewChild('render_container', {static: true})
+    hostElement?: ElementRef;
+
     stats: Stats;
+
+    private resized = true;
 
     keysPressed = new Map<string, boolean>();
     private old: number;
@@ -28,7 +33,7 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         this.renderer.shadowMap.enabled = true;
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        window.addEventListener('resize', this.onWindowResize.bind(this));
+        window.addEventListener('resize', this.onResize.bind(this));
 
         const aspect = window.innerWidth / window.innerHeight;
         this.perspectiveCamera = new THREE.PerspectiveCamera(36, aspect, 0.25, 2000);
@@ -47,9 +52,13 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         this.old = Date.now();
     }
 
+    onResize() {
+        this.resized = true;
+    }
+
     ngOnDestroy(): void {
         document.body.removeChild(this.stats.dom);
-        document.body.removeChild(this.renderer.domElement);
+        this.hostElement?.nativeElement.removeChild(this.renderer.domElement);
         this.renderer.dispose();
     }
 
@@ -73,12 +82,28 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
     abstract frame(dt: number): void;
 
     ngAfterViewInit(): void {
-        document.body.appendChild(this.renderer.domElement);
+        if (!this.hostElement) {
+            console.error('Missing container for renderer');
+            return;
+        }
+        const w = this.hostElement?.nativeElement.offsetWidth || 0;
+        const h = this.hostElement?.nativeElement.offsetHeight || 0;
+        this.renderer.setSize(w, h);
+        this.hostElement.nativeElement.appendChild(this.renderer.domElement);
         this.old = Date.now();
         this.animate();
     }
 
     animate() {
+        if (this.resized) {
+            this.resized = false;
+            const w = this.hostElement?.nativeElement.offsetWidth || 0;
+            const h = this.hostElement?.nativeElement.offsetHeight || 0;
+            this.renderer.setSize(w, h);
+            this.perspectiveCamera.aspect = w / h;
+            this.perspectiveCamera.updateProjectionMatrix();
+            this.updateOrthographicCamera();
+        }
         this.stats.update();
         const now = Date.now();
         this.frame((now - this.old) / 1000);
@@ -92,7 +117,10 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
     }
 
     updateOrthographicCamera() {
-        const aspect = window.innerWidth / window.innerHeight;
+        const w = this.hostElement?.nativeElement.offsetWidth || 0;
+        const h = this.hostElement?.nativeElement.offsetHeight || 0;
+
+        const aspect = w / h;
         this.orthographicCamera.left = -this.orthographicDiagonal * aspect;
         this.orthographicCamera.right = this.orthographicDiagonal * aspect;
         this.orthographicCamera.top = this.orthographicDiagonal;
@@ -100,10 +128,10 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         this.orthographicCamera.updateProjectionMatrix();
     }
 
-    onWindowResize() {
-        this.perspectiveCamera.aspect = window.innerWidth / window.innerHeight;
-        this.perspectiveCamera.updateProjectionMatrix();
-        this.updateOrthographicCamera()
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+    // onWindowResize() {
+    //     this.perspectiveCamera.aspect = window.innerWidth / window.innerHeight;
+    //     this.perspectiveCamera.updateProjectionMatrix();
+    //     this.updateOrthographicCamera()
+    //     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // }
 }

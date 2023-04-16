@@ -27,7 +27,7 @@ const NUM_WORKERS = 64;
 
 @Component({
     selector: 'new-billiards',
-    template: '',
+    templateUrl: '../../widgets/three-demo/three-demo.component.html',
     styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
 })
 export class NewBilliardsComponent extends ThreeDemoComponent {

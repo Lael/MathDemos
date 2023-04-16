@@ -192,7 +192,6 @@ export abstract class PenroseTiling {
 
     addSubDemo(before: TileSpec[], beforeOffset: Vector2, afterOffset: Vector2): void {
         const after = this.decomposeTiles(before);
-        console.log(after);
         this.addBeforeAfter(before, after, beforeOffset, afterOffset);
     }
 

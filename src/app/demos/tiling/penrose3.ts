@@ -423,8 +423,6 @@ export class Penrose3 extends PenroseTiling {
             newNodes.push({tileType: TileType.KITE, tilePosition: kite});
         }
 
-        console.log(newNodes);
-
         return newNodes;
     }
 
