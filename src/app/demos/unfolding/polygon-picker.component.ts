@@ -42,6 +42,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
 
     private mat = new MeshBasicMaterial({color: 0xffffff});
     private geo = new CircleGeometry(POINT_RADIUS);
+    private com = new Vector2();
 
     dirty = true;
 
@@ -56,12 +57,10 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
 
         this.dragControls = new DragControls(this.draggables, this.camera, this.renderer.domElement);
 
-        // this.dragControls.addEventListener('dragstart', event => console.log(event));
         this.dragControls.addEventListener('drag', this.drag.bind(this));
         this.dragControls.addEventListener('dragend', this.dragEnd.bind(this));
 
         document.addEventListener('pointerdown', this.pointerdown.bind(this), {capture: true});
-        // document.addEventListener('mouseup', this.mouseup.bind(this));
     }
 
     ngOnChanges(changes: SimpleChanges) {
@@ -108,39 +107,27 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
             }
             break;
         case Restriction.CENTRAL:
-            const p0 = new Vector2(this.draggables[0].position.x, this.draggables[0].position.y);
-            const p1 = new Vector2(this.draggables[1].position.x, this.draggables[1].position.y);
-            const p2 = new Vector2(this.draggables[2].position.x, this.draggables[2].position.y);
-            const p3 = new Vector2(this.draggables[3].position.x, this.draggables[3].position.y);
-            const p4 = new Vector2(this.draggables[4].position.x, this.draggables[4].position.y);
-            const p5 = new Vector2(this.draggables[5].position.x, this.draggables[5].position.y);
-            const com = new Vector2()
-                .add(p0)
-                .add(p1)
-                .add(p2)
-                .add(p3)
-                .add(p4)
-                .add(p5)
-                .multiplyScalar(1 / 6);
-            if (event.object === this.draggables[0]) {
-                this.draggables[3].position.x = 2 * com.x - p0.x;
-                this.draggables[3].position.y = 2 * com.y - p0.y;
-            } else if (event.object === this.draggables[1]) {
-                this.draggables[4].position.x = 2 * com.x - p1.x;
-                this.draggables[4].position.y = 2 * com.y - p1.y;
-            } else if (event.object === this.draggables[2]) {
-                this.draggables[5].position.x = 2 * com.x - p2.x;
-                this.draggables[5].position.y = 2 * com.y - p2.y;
-            } else if (event.object === this.draggables[3]) {
-                this.draggables[0].position.x = 2 * com.x - p3.x;
-                this.draggables[0].position.y = 2 * com.y - p3.y;
-            } else if (event.object === this.draggables[4]) {
-                this.draggables[1].position.x = 2 * com.x - p4.x;
-                this.draggables[1].position.y = 2 * com.y - p4.y;
-            } else if (event.object === this.draggables[5]) {
-                this.draggables[2].position.x = 2 * com.x - p5.x;
-                this.draggables[2].position.y = 2 * com.y - p5.y;
+            let found = -1;
+            for (let i = 0; i < this.draggables.length; i++) {
+                if (event.object === this.draggables[i]) {
+                    found = i;
+                    break;
+                }
             }
+            if (found === -1) return;
+
+            let n = this.draggables.length / 2;
+            const opp = this.com.clone().multiplyScalar(2).sub(
+                new Vector2(
+                    this.draggables[found].position.x,
+                    this.draggables[found].position.y
+                )
+            );
+
+            const oppObject = this.draggables[(n + found) % (2 * n)];
+            oppObject.position.x = opp.x;
+            oppObject.position.y = opp.y;
+
             break;
         }
         this.markDirty();
@@ -154,10 +141,13 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
         if (this.keysPressed.get('ArrowUp')) vDiff += dt * 0.1;
         if (this.keysPressed.get('ArrowDown')) vDiff -= dt * 0.1;
         if (aDiff !== 0 || vDiff !== 0) {
-            const r = new Matrix4().makeRotationZ(aDiff);
+            const r = new Matrix4().makeTranslation(-this.com.x, -this.com.y, 0)
+                .premultiply(new Matrix4().makeRotationZ(aDiff))
+                .premultiply(new Matrix4().makeTranslation(this.com.x, this.com.y, 0));
+            this.com.y += vDiff;
             for (let d of this.draggables) {
-                d.position.y += vDiff;
                 d.position.applyMatrix4(r);
+                d.position.y += vDiff;
             }
             this.markDirty();
         }
@@ -194,7 +184,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     }
 
     pointerdown(event: MouseEvent) {
-        if (this.restriction !== Restriction.CONVEX) return;
+        if (this.restriction === Restriction.KITE) return;
         // find location in world
         const screenX = (event.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
         const screenY = 1 - (event.clientY / this.renderer.domElement.clientHeight) * 2;
@@ -218,18 +208,33 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
             return;
         }
 
-        const d = new Mesh(this.geo, this.mat);
-        d.translateX(point.x);
-        d.translateY(point.y);
+        const d = this.dot(point);
         this.draggables.push(d);
         this.scene.add(d);
+
+        if (this.restriction === Restriction.CENTRAL) {
+            const opp = this.com.clone().multiplyScalar(2).sub(point);
+            const od = this.dot(opp);
+            this.draggables.push(od);
+            this.scene.add(od);
+
+            const a1 = hull[0].clone().sub(this.com).angle();
+            this.draggables.sort(
+                (a, b) => {
+                    const at = new Vector2(a.position.x, a.position.y).sub(this.com).angle();
+                    const bt = new Vector2(b.position.x, b.position.y).sub(this.com).angle();
+                    return normalizeAngle(at, a1) - normalizeAngle(bt, a1);
+                }
+            );
+        }
+
 
         this.renderer.render(this.scene, this.camera);
         this.markDirty();
     }
 
     dragEnd() {
-        if (this.restriction !== Restriction.CONVEX) return;
+        if (this.restriction === Restriction.KITE) return;
         const objects = this.dragControls.getObjects();
         const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));
         const [hull, _] = convexHull(vertices);
@@ -262,9 +267,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
             this.scene.add(...objects);
             const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));
             let hull = [...vertices];
-            if (this.restriction === Restriction.CONVEX) {
-                hull = convexHull(vertices)[0];
-            }
+            if (this.restriction !== Restriction.KITE) hull = convexHull(vertices)[0];
             this.verticesEvent.emit(hull);
 
             const polyPoints = [];
@@ -328,7 +331,18 @@ function convexHull(points: Vector2[]): Vector2[][] {
     } while (current.distanceToSquared(start) > 0 && steps < points.length);
 
     const antihull = points.filter(v => !!hull.find(h => h === v));
-    return [hull, antihull];
+    let firstIndex = -1;
+    for (let v of points) {
+        for (let i = 0; i < hull.length; i++) {
+            if (hull[i].equals(v)) {
+                firstIndex = i;
+                break;
+            }
+        }
+        if (firstIndex !== -1) break;
+    }
+    const orderedHull = hull.slice(firstIndex, hull.length).concat(hull.slice(0, firstIndex));
+    return [orderedHull, antihull];
 }
 
 function hullContainsPoint(hull: Vector2[], point: Vector2): boolean {

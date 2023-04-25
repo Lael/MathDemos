@@ -3,14 +3,23 @@ import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component"
 import {ArrowHelper, BufferGeometry, Color, LineBasicMaterial, LineSegments, Vector2, Vector3} from "three";
 import {UnfoldingData} from "./billiards-unfolding.component";
 import {Restriction} from "./polygon-picker.component";
+import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
 type UnfoldingResult = {
     vertices: Vector2[];
     reflectedSideIndex: number;
     reflectedSideProportion: number;
     angle: number;
+    x: number;
     nonGenericError: boolean;
 };
+
+type AxisIntersection = {
+    x: number,
+    index: number,
+    proportion: number,
+    angle: number,
+}
 
 const CLEAR_COLOR = new Color(0x123456);
 const INITIAL_COLOR = new Color(0xaaffcc);
@@ -23,6 +32,12 @@ const B_COLOR = 0xff6384;
 const CAMERA_SPEED_XY = 1; // world-space units/second at z=1
 const CAMERA_SPEED_Z = 0.5; // world-space units/second at z=1
 
+export enum BirkhoffFunction {
+    X,
+    THETA,
+    SIN_THETA,
+    SIGN_SIN_THETA,
+}
 
 @Component({
     selector: 'unfolding',
@@ -43,6 +58,8 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
 
     @Output() data = new EventEmitter<UnfoldingData[]>();
 
+    controls: OrbitControls;
+
     ngOnChanges(_: SimpleChanges) {
         this.dirty = true;
     }
@@ -52,29 +69,12 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
         this.useOrthographic = true;
         this.orthographicDiagonal = 3;
         this.updateOrthographicCamera();
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableRotate = false;
         this.renderer.setClearColor(CLEAR_COLOR);
     }
 
-    private processKeyboardInput(dt: number): void {
-        // Camera
-        const cameraDiff = new Vector3();
-        if (this.keysPressed.get('KeyW')) cameraDiff.y += 1;
-        if (this.keysPressed.get('KeyA')) cameraDiff.x -= 1;
-        if (this.keysPressed.get('KeyS')) cameraDiff.y -= 1;
-        if (this.keysPressed.get('KeyD')) cameraDiff.x += 1;
-        if (cameraDiff.length() !== 0) cameraDiff.normalize();
-        this.orthographicCamera.position.x += CAMERA_SPEED_XY * dt * cameraDiff.x * this.orthographicDiagonal;
-        this.orthographicCamera.position.y += CAMERA_SPEED_XY * dt * cameraDiff.y * this.orthographicDiagonal;
-
-        let zoomDiff = 1;
-        if (this.keysPressed.get('Space')) zoomDiff += CAMERA_SPEED_Z * dt;
-        if (this.keysPressed.get('ShiftLeft')) zoomDiff -= CAMERA_SPEED_Z * dt;
-        this.orthographicDiagonal *= zoomDiff;
-        this.updateOrthographicCamera();
-    }
-
     override frame(dt: number) {
-        this.processKeyboardInput(dt);
         if (this.dirty) {
             this.dirty = false;
             this.unfold();
@@ -112,13 +112,13 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
         }
             break;
         case Restriction.CENTRAL: {
-            const [v0, v1, v2, v3, v4, v5] = [...this.vertices];
-            this.addArrow(v5, v0, A_COLOR);
-            this.addArrow(v4, v3, B_COLOR);
-            this.addArrow(v1, v0, B_COLOR);
-            this.addArrow(v2, v3, A_COLOR);
-        }
+            const n = this.vertices.length;
+            this.addArrow(this.vertices[n - 1], this.vertices[0], A_COLOR);
+            this.addArrow(this.vertices[n / 2 + 1], this.vertices[n / 2], B_COLOR);
+            this.addArrow(this.vertices[1], this.vertices[0], B_COLOR);
+            this.addArrow(this.vertices[n / 2 - 1], this.vertices[n / 2], A_COLOR);
             break;
+        }
         }
 
         let graphRes = Math.pow(10,
@@ -130,8 +130,10 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
         let bSides = 0;
         let birkhoffSum = 0;
         const angles = new Set<string>();
+        let lastX = 0;
         for (let i = 0; i < this.iterations; i++) {
-            const result = this.iterate(vertices);
+            const result = this.iterate(vertices, lastX);
+            lastX = result.x;
             if (result.nonGenericError) break;
             vertices = result.vertices;
             for (let i = 0; i < vertices.length; i++) {
@@ -149,21 +151,22 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
                 }
                 break;
             case Restriction.CENTRAL:
-                if (result.reflectedSideIndex === 5) {
-                    birkhoffSum -= Math.sign(vertices[5].y) * result.reflectedSideProportion;
-                    aSides -= Math.sign(vertices[5].y);
-                }
-                if (result.reflectedSideIndex === 3) {
-                    birkhoffSum -= Math.sign(vertices[4].y) * result.reflectedSideProportion;
-                    bSides -= Math.sign(vertices[4].y);
-                }
+                const n = this.vertices.length;
                 if (result.reflectedSideIndex === 0) {
                     birkhoffSum -= Math.sign(vertices[1].y) * result.reflectedSideProportion;
                     bSides -= Math.sign(vertices[1].y);
                 }
-                if (result.reflectedSideIndex === 2) {
-                    birkhoffSum -= Math.sign(vertices[2].y) * result.reflectedSideProportion;
-                    aSides -= Math.sign(vertices[2].y);
+                if (result.reflectedSideIndex === n - 1) {
+                    birkhoffSum -= Math.sign(vertices[n - 1].y) * result.reflectedSideProportion;
+                    aSides -= Math.sign(vertices[n - 1].y);
+                }
+                if (result.reflectedSideIndex === n / 2) {
+                    birkhoffSum -= Math.sign(vertices[n / 2 + 1].y) * result.reflectedSideProportion;
+                    bSides -= Math.sign(vertices[n / 2 + 1].y);
+                }
+                if (result.reflectedSideIndex === n / 2 - 1) {
+                    birkhoffSum -= Math.sign(vertices[n / 2 - 1].y) * result.reflectedSideProportion;
+                    aSides -= Math.sign(vertices[n / 2 - 1].y);
                 }
                 break;
             }
@@ -197,7 +200,7 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
         this.scene.add(arrow);
     }
 
-    iterate(vertices: Vector2[]): UnfoldingResult {
+    iterate(vertices: Vector2[], lastX: number = 0): UnfoldingResult {
         let allPos = true;
         let allNeg = true;
         for (let v of vertices) {
@@ -209,6 +212,7 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
                     reflectedSideIndex: -1,
                     reflectedSideProportion: 0,
                     angle: 0,
+                    x: 0,
                     nonGenericError: true,
                 };
             }
@@ -219,32 +223,38 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
                 reflectedSideIndex: -1,
                 reflectedSideProportion: 0,
                 angle: 0,
+                x: 0,
                 nonGenericError: true,
             };
         }
-        let bestX = Number.NEGATIVE_INFINITY;
-        let bestI = -1;
-        let bestProportion = -1;
+
+        const intersections: AxisIntersection[] = [];
         for (let i = 0; i < vertices.length; i++) {
             const vi = vertices[i];
             const vj = vertices[(i + 1) % vertices.length];
             if (Math.sign(vi.y) * Math.sign(vj.y) !== -1) continue;
             const proportion = Math.abs(vi.y / (vj.y - vi.y));
             const x = vi.x + proportion * (vj.x - vi.x);
-            if (x > bestX) {
-                bestX = x;
-                bestI = i;
-                bestProportion = proportion;
+            if (x > lastX) {
+                intersections.push({
+                    x,
+                    index: i,
+                    proportion,
+                    angle: vj.clone().sub(vi).angle() || 0,
+                });
             }
         }
-        const vi = vertices[bestI];
-        const vj = vertices[(bestI + 1) % vertices.length];
+        intersections.sort((a, b) => a.x - b.x);
+        const best = intersections[0];
+        const vi = vertices[best.index];
+        const vj = vertices[(best.index + 1) % vertices.length];
         const newVertices = vertices.map(v => reflectOver(vi, vj, v));
         return {
             vertices: newVertices,
-            reflectedSideIndex: bestI,
-            reflectedSideProportion: bestProportion,
-            angle: vj?.clone().sub(vi).angle() || 0,
+            reflectedSideIndex: best.index,
+            reflectedSideProportion: best.proportion,
+            angle: best.angle,
+            x: best.x,
             nonGenericError: false,
         };
     }

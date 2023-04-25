@@ -111,7 +111,7 @@ export class SymplecticComponent extends ThreeDemoComponent {
         this.perspectiveCamera.position.set(5, 5, 5);
 
         this.perspectiveControls = new OrbitControls(this.perspectiveCamera, this.renderer.domElement);
-        this.perspectiveControls.enablePan = false;
+        // this.perspectiveControls.enablePan = false;
 
         this.orthographicControls = new OrbitControls(this.orthographicCamera, this.renderer.domElement);
         this.orthographicControls.enableRotate = false;
