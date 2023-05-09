@@ -32,7 +32,10 @@ import {PoincareComponent} from "./demos/poincare/poincare.component";
 import {SymplecticComponent} from "./demos/symplectic/symplectic.component";
 import {BilliardsUnfoldingComponent} from "./demos/unfolding/billiards-unfolding.component";
 import {UnfoldingComponent} from "./demos/unfolding/unfolding.component";
-import {PolygonPickerComponent} from "./demos/unfolding/polygon-picker.component";
+import {PolygonPickerComponent} from "./widgets/polygon-picker.component";
+import {Unfolding3DComponent} from "./demos/unfolding-3d/unfolding-3d.component";
+import {Unfolder3DComponent} from "./demos/unfolding-3d/unfolder-3d.component";
+import {VectorPickerComponent} from "./widgets/vector-picker.component";
 
 @NgModule({
     bootstrap: [AppComponent],
@@ -57,6 +60,9 @@ import {PolygonPickerComponent} from "./demos/unfolding/polygon-picker.component
         BilliardsUnfoldingComponent,
         UnfoldingComponent,
         PolygonPickerComponent,
+        VectorPickerComponent,
+        Unfolding3DComponent,
+        Unfolder3DComponent,
     ],
     imports: [
         BrowserModule,

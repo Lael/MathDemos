@@ -7,6 +7,7 @@ import {NewBilliardsComponent} from "./demos/new-billiards/new-billiards.compone
 import {TilingComponent} from "./demos/tiling/tiling.component";
 import {SymplecticComponent} from "./demos/symplectic/symplectic.component";
 import {BilliardsUnfoldingComponent} from "./demos/unfolding/billiards-unfolding.component";
+import {Unfolding3DComponent} from "./demos/unfolding-3d/unfolding-3d.component";
 
 const routes: Routes = [
     {path: '', component: HomePageComponent},
@@ -20,6 +21,7 @@ const routes: Routes = [
     // {path: POINCARE_PATH, component: PoincareComponent},
     {path: SYMPLECTIC_PATH, component: SymplecticComponent},
     {path: UNFOLDING_PATH, component: BilliardsUnfoldingComponent},
+    {path: 'unfolding-3d', component: Unfolding3DComponent},
 ];
 
 @NgModule({

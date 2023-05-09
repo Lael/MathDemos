@@ -3,12 +3,12 @@ import * as dat from "dat.gui";
 import {Chart} from 'chart.js/auto';
 import {Vector2} from "three";
 import {ChartConfiguration} from "chart.js";
-import {Restriction} from "./polygon-picker.component";
+import {PolygonRestriction} from "../../widgets/polygon-picker.component";
 
 type Params = {
     // unfolding
     iterations: number;
-    pickerRestriction: Restriction;
+    pickerRestriction: PolygonRestriction;
     graphA: boolean;
     graphB: boolean;
     graphAB: boolean;
@@ -33,7 +33,7 @@ export class BilliardsUnfoldingComponent implements OnDestroy {
 
     params: Params = {
         iterations: 100,
-        pickerRestriction: Restriction.CONVEX,
+        pickerRestriction: PolygonRestriction.CONVEX,
         graphA: true,
         graphB: true,
         graphAB: true,
@@ -66,14 +66,14 @@ export class BilliardsUnfoldingComponent implements OnDestroy {
         const datasets = [];
 
         switch (this.params.pickerRestriction) {
-        case Restriction.CONVEX:
+        case PolygonRestriction.CONVEX:
             datasets.push({
                 label: 'Distinct Angles',
                 data: results.map(row => row.distinctAngles)
             });
             break;
-        case Restriction.KITE:
-        case Restriction.CENTRAL:
+        case PolygonRestriction.KITE:
+        case PolygonRestriction.CENTRAL:
             if (this.params.graphA) datasets.push({
                 label: 'A',
                 data: results.map(row => row.aSides)
@@ -113,8 +113,6 @@ export class BilliardsUnfoldingComponent implements OnDestroy {
             this.chart.config.data = config.data;
             this.chart.update();
         }
-
-
     }
 
     updateGUI() {
@@ -122,7 +120,7 @@ export class BilliardsUnfoldingComponent implements OnDestroy {
         this.gui = new dat.GUI();
 
         const pickFolder = this.gui.addFolder('Polygon Picker');
-        pickFolder.add(this.params, 'pickerRestriction', Object.values(Restriction)).name('Rules');
+        pickFolder.add(this.params, 'pickerRestriction', Object.values(PolygonRestriction)).name('Rules');
 
         const unfoldFolder = this.gui.addFolder('Unfolding');
         unfoldFolder.add(this.params, 'iterations')

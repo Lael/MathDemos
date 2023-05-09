@@ -1,5 +1,5 @@
 import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "@angular/core";
-import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
+import {ThreeDemoComponent} from "./three-demo/three-demo.component";
 import {
     AxesHelper,
     BufferGeometry,
@@ -14,13 +14,13 @@ import {
     Vector3
 } from "three";
 import {DragControls} from "three/examples/jsm/controls/DragControls";
-import {normalizeAngle} from "../../../math/math-helpers";
-import {reflectOver} from "./unfolding.component";
+import {normalizeAngle} from "../../math/math-helpers";
+import {reflectOver} from "../demos/unfolding/unfolding.component";
 
 const CLEAR_COLOR = new Color(0x123456);
 const POINT_RADIUS = 0.05;
 
-export enum Restriction {
+export enum PolygonRestriction {
     CONVEX = 'Convex',
     KITE = 'Kite',
     CENTRAL = 'Central',
@@ -28,12 +28,12 @@ export enum Restriction {
 
 @Component({
     selector: 'polygon-picker',
-    templateUrl: '../../widgets/three-demo/three-demo.component.html',
-    styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
+    templateUrl: './three-demo/three-demo.component.html',
+    styleUrls: ['./three-demo/three-demo.component.sass']
 })
 export class PolygonPickerComponent extends ThreeDemoComponent implements OnChanges {
 
-    @Input() restriction: Restriction = Restriction.CONVEX;
+    @Input() restriction: PolygonRestriction = PolygonRestriction.CONVEX;
 
     @Output() verticesEvent = new EventEmitter<Vector2[]>();
 
@@ -69,7 +69,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
 
     private drag(event: any) {
         switch (this.restriction) {
-        case Restriction.KITE:
+        case PolygonRestriction.KITE:
             const v0 = new Vector2(this.draggables[0].position.x, this.draggables[0].position.y);
             const v1 = new Vector2(this.draggables[1].position.x, this.draggables[1].position.y);
             const v2 = new Vector2(this.draggables[2].position.x, this.draggables[2].position.y);
@@ -106,7 +106,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
                 this.draggables[2].position.y = v1.y + d * Math.sin(t3 + theta);
             }
             break;
-        case Restriction.CENTRAL:
+        case PolygonRestriction.CENTRAL:
             let found = -1;
             for (let i = 0; i < this.draggables.length; i++) {
                 if (event.object === this.draggables[i]) {
@@ -158,15 +158,15 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
             this.draggables.pop();
         }
         switch (this.restriction) {
-        case Restriction.CENTRAL:
-        case Restriction.CONVEX:
+        case PolygonRestriction.CENTRAL:
+        case PolygonRestriction.CONVEX:
             const n = 6;
             for (let i = 0; i < n; i++) {
                 const v = polar(1, i * 2 * Math.PI / n + 0.1234);
                 this.draggables.push(this.dot(v));
             }
             break;
-        case Restriction.KITE:
+        case PolygonRestriction.KITE:
             this.draggables.push(this.dot(new Vector2(1, 1)));
             this.draggables.push(this.dot(new Vector2(0, 2)));
             this.draggables.push(this.dot(new Vector2(-1, 1)));
@@ -184,7 +184,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     }
 
     pointerdown(event: MouseEvent) {
-        if (this.restriction === Restriction.KITE) return;
+        if (this.restriction === PolygonRestriction.KITE) return;
         // find location in world
         const screenX = (event.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
         const screenY = 1 - (event.clientY / this.renderer.domElement.clientHeight) * 2;
@@ -212,7 +212,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
         this.draggables.push(d);
         this.scene.add(d);
 
-        if (this.restriction === Restriction.CENTRAL) {
+        if (this.restriction === PolygonRestriction.CENTRAL) {
             const opp = this.com.clone().multiplyScalar(2).sub(point);
             const od = this.dot(opp);
             this.draggables.push(od);
@@ -234,7 +234,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     }
 
     dragEnd() {
-        if (this.restriction === Restriction.KITE) return;
+        if (this.restriction === PolygonRestriction.KITE) return;
         const objects = this.dragControls.getObjects();
         const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));
         const [hull, _] = convexHull(vertices);
@@ -267,7 +267,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
             this.scene.add(...objects);
             const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));
             let hull = [...vertices];
-            if (this.restriction !== Restriction.KITE) hull = convexHull(vertices)[0];
+            if (this.restriction !== PolygonRestriction.KITE) hull = convexHull(vertices)[0];
             this.verticesEvent.emit(hull);
 
             const polyPoints = [];

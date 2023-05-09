@@ -2,7 +2,7 @@ import {Component, EventEmitter, Input, OnChanges, Output, SimpleChanges} from "
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
 import {ArrowHelper, BufferGeometry, Color, LineBasicMaterial, LineSegments, Vector2, Vector3} from "three";
 import {UnfoldingData} from "./billiards-unfolding.component";
-import {Restriction} from "./polygon-picker.component";
+import {PolygonRestriction} from "../../widgets/polygon-picker.component";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
 type UnfoldingResult = {
@@ -54,7 +54,7 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
     iterations: number = 100;
 
     @Input()
-    restriction: Restriction = Restriction.CONVEX;
+    restriction: PolygonRestriction = PolygonRestriction.CONVEX;
 
     @Output() data = new EventEmitter<UnfoldingData[]>();
 
@@ -100,9 +100,9 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
         this.scene.add(init);
 
         switch (this.restriction) {
-        case Restriction.CONVEX:
+        case PolygonRestriction.CONVEX:
             break;
-        case Restriction.KITE: {
+        case PolygonRestriction.KITE: {
             console.log(this.vertices);
             const [v0, v1, v2, v3] = [...this.vertices];
             this.addArrow(v3, v0, A_COLOR);
@@ -111,7 +111,7 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
             this.addArrow(v1, v2, B_COLOR);
         }
             break;
-        case Restriction.CENTRAL: {
+        case PolygonRestriction.CENTRAL: {
             const n = this.vertices.length;
             this.addArrow(this.vertices[n - 1], this.vertices[0], A_COLOR);
             this.addArrow(this.vertices[n / 2 + 1], this.vertices[n / 2], B_COLOR);
@@ -140,7 +140,7 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
                 points.push(vertices[i], vertices[(i + 1) % vertices.length]);
             }
             switch (this.restriction) {
-            case Restriction.KITE:
+            case PolygonRestriction.KITE:
                 if (result.reflectedSideIndex === 3 || result.reflectedSideIndex === 2) {
                     birkhoffSum -= Math.sign(vertices[3].y) * result.reflectedSideProportion;
                     aSides -= Math.sign(vertices[3].y);
@@ -150,7 +150,7 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
                     bSides -= Math.sign(vertices[1].y);
                 }
                 break;
-            case Restriction.CENTRAL:
+            case PolygonRestriction.CENTRAL:
                 const n = this.vertices.length;
                 if (result.reflectedSideIndex === 0) {
                     birkhoffSum -= Math.sign(vertices[1].y) * result.reflectedSideProportion;
