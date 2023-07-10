@@ -93,6 +93,10 @@ export class Graph<NodeData, EdgeData> {
         return edge;
     }
 
+    getNodeData(id: number): NodeData | undefined {
+        return this.nodeMap.get(id)?.data;
+    }
+
     get nodeIds() {
         return this.nodeMap.keys();
     }

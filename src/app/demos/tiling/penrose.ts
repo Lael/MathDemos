@@ -163,6 +163,24 @@ export abstract class PenroseTiling {
     readonly levels: Graph<TileSpec, TileAdjacency>[] = [this.graph];
     currentLevel = 0;
 
+    private findNode(pt: Vector2) {
+        const distances = [];
+        for (let nodeId of this.graph.nodeIds) {
+            const data = this.graph.getNodeData(nodeId);
+            if (data) distances.push({nodeId, distance: pt.distanceTo(data.tilePosition.position)});
+        }
+        distances.sort((a, b) => a.distance - b.distance);
+
+    }
+
+    private nodeContainsPoint(pt: Vector2, nodeId: number): boolean {
+        const nd = this.graph.getNodeData(nodeId);
+        if (!nd) return false;
+        const tp = pt.clone().sub(nd.tilePosition.position).rotateAround(new Vector2(), -nd.tilePosition.rotation);
+        const polygon = this.tiles[nd.tileType].polygon;
+        return polygon.containsPoint(tp);
+    }
+
     abstract convert(): PenroseTiling;
 
     abstract decomposeTiles(nodeData: TileSpec[]): TileSpec[];

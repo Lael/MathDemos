@@ -81,6 +81,37 @@ export class UnfoldingComponent extends ThreeDemoComponent implements OnChanges 
         }
     }
 
+    computeProbabilities() {
+        // row i, column j is chance of moving from side i to side j
+        const probabilities: number[][] = [];
+        const n = this.vertices.length;
+        let lengths = [];
+        for (let i = 0; i < n; i++) {
+            lengths.push(this.vertices[i].distanceTo(this.vertices[(i + 1) % n]));
+        }
+        let totalLength = lengths.reduce((s, v) => s + v);
+        for (let i = 0; i < n; i++) {
+            const row = [];
+            for (let j = 0; j < n; j++) {
+                if (i === j) row.push(0);
+                else {
+                    row.push(
+                        
+                    );
+                }
+            }
+
+        }
+        return probabilities;
+    }
+
+    markovUnfold() {
+        const n = this.vertices.length;
+        const probabilities: number[][] = this.computeProbabilities();
+
+        let currentSide = 0;
+    }
+
     unfold() {
         this.scene.clear();
         let vertices = this.vertices;

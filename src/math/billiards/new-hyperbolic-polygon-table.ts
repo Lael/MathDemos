@@ -198,8 +198,7 @@ export class NewHyperbolicPolygonTable {
     }
 
     preimages(flavor: Flavor,
-              iterations: number = 1,
-              workers: Worker[]): HyperGeodesic[] {
+              iterations: number = 1): HyperGeodesic[] {
         if (flavor === Flavor.SYMPLECTIC) return [];
         this.workStartTime = Date.now();
         this.singularities = [];

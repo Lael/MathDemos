@@ -22,6 +22,18 @@ export class Polygon {
         }
         return new Polygon(vertices);
     }
+
+    containsPoint(pt: Vector2): boolean {
+        let w = 0;
+        for (let i = 0; i < this.vertices.length; i++) {
+            const v1 = this.vertices[i];
+            const v2 = this.vertices[(i + 1) % this.vertices.length];
+            const h1 = v1.clone().sub(pt).angle();
+            const h2 = v2.clone().sub(pt).angle();
+            w += normalizeAngle(h2 - h1)
+        }
+        return Math.abs(w - 2 * Math.PI) < 0.1;
+    }
 }
 
 export enum UniformTilingType {

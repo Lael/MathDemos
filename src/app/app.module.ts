@@ -36,6 +36,7 @@ import {PolygonPickerComponent} from "./widgets/polygon-picker.component";
 import {Unfolding3DComponent} from "./demos/unfolding-3d/unfolding-3d.component";
 import {Unfolder3DComponent} from "./demos/unfolding-3d/unfolder-3d.component";
 import {VectorPickerComponent} from "./widgets/vector-picker.component";
+import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.component";
 
 @NgModule({
     bootstrap: [AppComponent],
@@ -63,6 +64,7 @@ import {VectorPickerComponent} from "./widgets/vector-picker.component";
         VectorPickerComponent,
         Unfolding3DComponent,
         Unfolder3DComponent,
+        TileBilliardsComponent,
     ],
     imports: [
         BrowserModule,

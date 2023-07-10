@@ -313,7 +313,7 @@ export class TilingComponent extends ThreeDemoComponent {
             }
 
             meshes.push(tileMesh);
-            annotations.push(...annotationMeshes)
+            annotations.push(...annotationMeshes);
         }
         for (let mesh of meshes) {
             this.scene.add(mesh);
