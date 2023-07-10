@@ -63,14 +63,14 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     // Parameters
     billiardTypeParams = {
         duality: 'Outer',
-        flavor: 'Symplectic',
+        flavor: 'Length',
         plane: 'Affine',
     };
 
     tableParams = {
         n: 3,
         radius: 1,
-        semidisk: true,
+        semidisk: false,
     };
 
     drawParams = {
@@ -82,8 +82,8 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         derivative: false,
         derivativeBound: 5,
         derivativeStep: -1,
-        scaffold: true,
-        centers: true,
+        scaffold: false,
+        centers: false,
     }
 
     gameParams = {
@@ -248,7 +248,7 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         billiardFolder.add(this.billiardTypeParams, 'duality', ['Inner', 'Outer'])
             .name('Duality')
             .onFinishChange(this.updateBilliardTypeParams.bind(this));
-        billiardFolder.add(this.billiardTypeParams, 'flavor', ['Standard', 'Symplectic'])
+        billiardFolder.add(this.billiardTypeParams, 'flavor', ['Length', 'Area'])
             .name('Flavor')
             .onFinishChange(this.updateBilliardTypeParams.bind(this));
         billiardFolder.add(this.billiardTypeParams, 'plane', ['Affine', 'Hyperbolic'])
@@ -842,7 +842,14 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     }
 
     get flavor(): Flavor {
-        return this.billiardTypeParams.flavor === 'Standard' ? Flavor.REGULAR : Flavor.SYMPLECTIC;
+        switch (this.duality) {
+        case Duality.INNER:
+            return this.billiardTypeParams.flavor === 'Length' ? Flavor.REGULAR : Flavor.SYMPLECTIC;
+        case Duality.OUTER:
+            return this.billiardTypeParams.flavor === 'Area' ? Flavor.REGULAR : Flavor.SYMPLECTIC;
+        default:
+            throw Error('Unexpected duality:' + this.duality);
+        }
     }
 
     get model(): HyperbolicModel {
