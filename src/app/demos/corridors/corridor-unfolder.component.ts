@@ -82,6 +82,7 @@ export class CorridorUnfolderComponent extends ThreeDemoComponent implements OnC
             }
         }
         console.log(sideIndices.join(', '));
+        
         // compute corridor with tracked vertices
         // draw unfoldings, ray, and corridor
         const unfoldingGeometry = new BufferGeometry().setFromPoints(unfoldingVertices);
