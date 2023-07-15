@@ -40,20 +40,13 @@ const END_POINT_COLOR = 0x6f51e7;
 const SCAFFOLD_COLOR = 0xffbbff;
 const HANDLE_COLOR = 0x990044;
 const CIRCLE_CENTER_COLOR = 0xf5dd90;
-const TP_CENTER_COLOR = 0xf590dd;
-
-// Other constants
-const CAMERA_SPEED_XY = 0.1; // world-space units/second at z=1
-const CAMERA_SPEED_Z = 0.25; // world-space units/second at z=1
-const OUTER_POINT_SPEED = 0.001; // world-space units/second
-const NUM_WORKERS = 64;
 
 @Component({
-    selector: 'new-billiards',
+    selector: 'billiards',
     templateUrl: '../../widgets/three-demo/three-demo.component.html',
     styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
 })
-export class NewBilliardsComponent extends ThreeDemoComponent {
+export class BilliardsComponent extends ThreeDemoComponent {
 
     orbitControls: OrbitControls;
     dragControls: DragControls;
@@ -75,8 +68,8 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
 
     drawParams = {
         model: 'Poincaré',
-        singularities: false,
-        singularityIterations: 0,
+        singularities: true,
+        singularityIterations: 100,
         orbit: true,
         orbitPaths: true,
         derivative: false,
@@ -114,6 +107,7 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     nextPoint = new THREE.Mesh();
     scaffold: THREE.Object3D[] = [];
     semidisk: THREE.Mesh;
+    // bigQuad: THREE.Mesh;
 
     // Billiards
     affineTable!: NewAffinePolygonTable;
@@ -167,6 +161,28 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
 
         this.startPoint = new THREE.Mesh(startPointGeometry, startPointMaterial);
         this.nextPoint = new THREE.Mesh(nextPointGeometry, endPointMaterial);
+
+        // const quadGeometry = new THREE.PlaneGeometry(1, 1);
+
+        // const width = this.orthographicCamera.right - this.orthographicCamera.left;
+        // const height = this.orthographicCamera.top - this.orthographicCamera.bottom;
+        // const vertices = this.draggables.map(d => new Vector2(d.position.x, d.position.y));
+        // while (vertices.length < 12) vertices.push(new Vector2());
+        // const quadMaterial = new THREE.ShaderMaterial({
+        //     uniforms: {
+        //         uTranslation: {value: new Vector2(this.orthographicCamera.position.x, this.orthographicCamera.position.y)},
+        //         uScale: {value: new Vector2(width, height)},
+        //         uMatrix: {value: this.orthographicCamera.projectionMatrix},
+        //         uIterations: {value: this.drawParams.singularityIterations},
+        //         uZoom: {value: 1 / this.orthographicCamera.zoom},
+        //         uN: {value: this.draggables.length},
+        //         uVertices: {value: vertices}
+        //     },
+        //     vertexShader: SING_VERT_SHADER,
+        //     fragmentShader: SING_FRAG_SHADER,
+        // });
+        // this.bigQuad = new THREE.Mesh(quadGeometry, quadMaterial);
+        // this.scene.add(this.bigQuad);
 
         this.resetAffineVertices();
 
@@ -237,12 +253,31 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         if (this.derivativeDirty) this.updateDerivatives();
         if (this.orbitDirty) this.updateOrbit();
         if (this.drawDirty) this.updateDraw();
+
+        //     if (this.flavor === Flavor.SYMPLECTIC &&
+        //         this.duality === Duality.OUTER &&
+        //         this.drawParams.singularities &&
+        //         this.singularityDirty
+        //     ) {
+        //         const vertices = this.draggables.map(d => new Vector2(d.position.x, d.position.y));
+        //         while (vertices.length < 12) vertices.push(new Vector2());
+        //         const width = this.orthographicCamera.right - this.orthographicCamera.left;
+        //         const height = this.orthographicCamera.top - this.orthographicCamera.bottom;
+        //         this.bigQuad.scale.set(width, height, 1);
+        //         (this.bigQuad.material as ShaderMaterial).uniforms['uTranslation'].value =
+        //             new Vector2(this.orthographicCamera.position.x, this.orthographicCamera.position.y);
+        //         (this.bigQuad.material as ShaderMaterial).uniforms['uScale'].value = new Vector2(width, height);
+        //         (this.bigQuad.material as ShaderMaterial).uniforms['uZoom'].value = 1 / this.orthographicCamera.zoom;
+        //         (this.bigQuad.material as ShaderMaterial).uniforms['uIterations'].value =
+        //             this.drawParams.singularityIterations;
+        //         (this.bigQuad.material as ShaderMaterial).uniforms['uN'].value = this.draggables.length;
+        //         (this.bigQuad.material as ShaderMaterial).uniforms['uVertices'].value = vertices;
+        //     }
     }
 
     updateGUI() {
         this.gui.destroy();
         this.gui = new dat.GUI();
-
 
         const billiardFolder = this.gui.addFolder('Billiard Type');
         billiardFolder.add(this.billiardTypeParams, 'duality', ['Inner', 'Outer'])
@@ -499,7 +534,7 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
     updateSingularities() {
         this.scene.remove(this.singularities);
         this.singularities = new THREE.Object3D();
-        if (this.duality !== Duality.OUTER || !this.drawParams.singularities) return;
+        // if (this.duality !== Duality.OUTER || this.flavor === Flavor.SYMPLECTIC || !this.drawParams.singularities) return;
         this.singularityDirty = false;
         let preimages;
         let points: Vector2[];
@@ -831,6 +866,12 @@ export class NewBilliardsComponent extends ThreeDemoComponent {
         if (this.drawParams.centers) this.scene.add(this.centers);
         this.scene.add(this.startPoint);
         this.scene.add(this.nextPoint);
+
+        // if (this.flavor === Flavor.SYMPLECTIC && this.duality === Duality.OUTER && this.drawParams.singularities) {
+        //     this.scene.add(this.bigQuad);
+        // } else {
+        //     this.scene.remove(this.bigQuad);
+        // }
     }
 
     get plane(): Plane {

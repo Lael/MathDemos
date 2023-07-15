@@ -16,6 +16,7 @@ import {
 import {DragControls} from "three/examples/jsm/controls/DragControls";
 import {normalizeAngle} from "../../math/math-helpers";
 import {reflectOver} from "../demos/unfolding/unfolding.component";
+import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
 const CLEAR_COLOR = new Color(0x123456);
 const POINT_RADIUS = 0.05;
@@ -34,11 +35,13 @@ export enum PolygonRestriction {
 export class PolygonPickerComponent extends ThreeDemoComponent implements OnChanges {
 
     @Input() restriction: PolygonRestriction = PolygonRestriction.CONVEX;
+    @Input() arrowKeys: boolean = false;
 
     @Output() verticesEvent = new EventEmitter<Vector2[]>();
 
     draggables: Mesh[] = [];
     dragControls: DragControls;
+    orbitControls: OrbitControls;
 
     private mat = new MeshBasicMaterial({color: 0xffffff});
     private geo = new CircleGeometry(POINT_RADIUS);
@@ -49,9 +52,10 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     constructor() {
         super();
         this.useOrthographic = true;
-        this.orthographicDiagonal = 3;
         this.updateOrthographicCamera();
         this.renderer.setClearColor(CLEAR_COLOR);
+        this.orbitControls = new OrbitControls(this.orthographicCamera, this.renderer.domElement);
+        this.orbitControls.enableRotate = false;
 
         this.reset();
 
@@ -160,7 +164,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
         switch (this.restriction) {
         case PolygonRestriction.CENTRAL:
         case PolygonRestriction.CONVEX:
-            const n = 6;
+            const n = 3;
             for (let i = 0; i < n; i++) {
                 const v = polar(1, i * 2 * Math.PI / n + 0.1234);
                 this.draggables.push(this.dot(v));
@@ -256,13 +260,15 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     }
 
     override frame(dt: number) {
-        this.processKeyboardInput(dt);
+        if (this.arrowKeys) this.processKeyboardInput(dt);
         if (this.dirty) {
             this.dirty = false;
 
             this.scene.clear();
-            const axesHelper = new AxesHelper(1);
-            this.scene.add(axesHelper);
+            if (this.arrowKeys) {
+                const axesHelper = new AxesHelper(1);
+                this.scene.add(axesHelper);
+            }
             const objects = this.dragControls.getObjects();
             this.scene.add(...objects);
             const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));

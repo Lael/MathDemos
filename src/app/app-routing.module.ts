@@ -3,18 +3,19 @@ import {RouterModule, Routes} from '@angular/router';
 import {HomePageComponent} from "./home-page/home-page.component";
 import {BILLIARDS_PATH, ENVELOPES_PATH, SYMPLECTIC_PATH, TILING_PATH, UNFOLDING_PATH,} from "./paths";
 import {EnvelopeComponent} from "./demos/envelopes/envelope.component";
-import {NewBilliardsComponent} from "./demos/new-billiards/new-billiards.component";
+import {BilliardsComponent} from "./demos/billiards/billiards.component";
 import {TilingComponent} from "./demos/tiling/tiling.component";
 import {SymplecticComponent} from "./demos/symplectic/symplectic.component";
 import {BilliardsUnfoldingComponent} from "./demos/unfolding/billiards-unfolding.component";
 import {Unfolding3DComponent} from "./demos/unfolding-3d/unfolding-3d.component";
 import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.component";
+import {CorridorsComponent} from "./demos/corridors/corridors.component";
 
 const routes: Routes = [
     {path: '', component: HomePageComponent},
     // {path: SURFACES_PATH, component: SurfacesDemoComponent},
     // {path: FUNCTIONS_PATH, component: FunctionsDemoComponent},
-    {path: BILLIARDS_PATH, component: NewBilliardsComponent},
+    {path: BILLIARDS_PATH, component: BilliardsComponent},
     {path: ENVELOPES_PATH, component: EnvelopeComponent},
     // {path: PENTAGRAM_PATH, component: PentagramComponent},
     // {path: MOBIUS_PATH, component: MobiusComponent},
@@ -24,6 +25,7 @@ const routes: Routes = [
     {path: UNFOLDING_PATH, component: BilliardsUnfoldingComponent},
     {path: 'unfolding-3d', component: Unfolding3DComponent},
     {path: 'tile-billiards', component: TileBilliardsComponent},
+    {path: 'corridors', component: CorridorsComponent},
 ];
 
 @NgModule({

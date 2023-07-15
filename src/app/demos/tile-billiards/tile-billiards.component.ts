@@ -1,7 +1,7 @@
 import {Component} from "@angular/core";
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
 import {Penrose3, VertexStarP3} from "../tiling/penrose3";
-import {InstancedMesh, Matrix4, MeshBasicMaterial, Shape, ShapeGeometry} from "three";
+import {InstancedMesh, Matrix4, MeshBasicMaterial, Shape, ShapeGeometry, Vector2} from "three";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {AnnotationType} from "../tiling/tiling";
 
@@ -14,6 +14,7 @@ export class TileBilliardsComponent extends ThreeDemoComponent {
 
     penrose: Penrose3;
     cameraControls: OrbitControls;
+    point = new Vector2(1.234, 5.678);
 
     constructor() {
         super();

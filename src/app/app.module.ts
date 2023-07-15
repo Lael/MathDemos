@@ -26,7 +26,7 @@ import {PentagramViewComponent} from "./demos/pentagram/pentagram-view.component
 import {MobiusComponent} from "./demos/mobius/mobius.component";
 import {MobiusViewComponent} from "./demos/mobius/mobius-view.component";
 import {LinkTileComponent} from './home-page/link-tile/link-tile.component';
-import {NewBilliardsComponent} from "./demos/new-billiards/new-billiards.component";
+import {BilliardsComponent} from "./demos/billiards/billiards.component";
 import {TilingComponent} from "./demos/tiling/tiling.component";
 import {PoincareComponent} from "./demos/poincare/poincare.component";
 import {SymplecticComponent} from "./demos/symplectic/symplectic.component";
@@ -37,6 +37,9 @@ import {Unfolding3DComponent} from "./demos/unfolding-3d/unfolding-3d.component"
 import {Unfolder3DComponent} from "./demos/unfolding-3d/unfolder-3d.component";
 import {VectorPickerComponent} from "./widgets/vector-picker.component";
 import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.component";
+import {PhasePictureComponent} from "./demos/corridors/phase-picture.component";
+import {CorridorUnfolderComponent} from "./demos/corridors/corridor-unfolder.component";
+import {CorridorsComponent} from "./demos/corridors/corridors.component";
 
 @NgModule({
     bootstrap: [AppComponent],
@@ -54,7 +57,7 @@ import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.comp
         MobiusComponent,
         MobiusViewComponent,
         LinkTileComponent,
-        NewBilliardsComponent,
+        BilliardsComponent,
         TilingComponent,
         PoincareComponent,
         SymplecticComponent,
@@ -65,6 +68,9 @@ import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.comp
         Unfolding3DComponent,
         Unfolder3DComponent,
         TileBilliardsComponent,
+        PhasePictureComponent,
+        CorridorUnfolderComponent,
+        CorridorsComponent,
     ],
     imports: [
         BrowserModule,

@@ -8,6 +8,7 @@ export class LineSegment extends Segment {
     private readonly m;
     readonly line: Line;
     readonly length: number;
+
     constructor(private readonly p1: Complex, private readonly p2: Complex) {
         super();
         if (p1.isInfinite() || p2.isInfinite()) throw Error('Infinite line segment');
@@ -43,6 +44,16 @@ export class LineSegment extends Segment {
             return [];
         }
         return [];
+    }
+
+    intersectLine(line: Line): Complex | undefined {
+        try {
+            const candidate = this.line.intersectLine(line);
+            if (this.containsPoint(candidate)) return candidate;
+        } catch (e) {
+            return undefined;
+        }
+        return undefined;
     }
 
     private intersectArc(other: ArcSegment): Complex[] {
