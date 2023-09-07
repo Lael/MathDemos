@@ -10,6 +10,8 @@ import {BilliardsUnfoldingComponent} from "./demos/unfolding/billiards-unfolding
 import {Unfolding3DComponent} from "./demos/unfolding-3d/unfolding-3d.component";
 import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.component";
 import {CorridorsComponent} from "./demos/corridors/corridors.component";
+import {ScalingBilliardsComponent} from "./demos/scaling-billiards/scaling-billiards.component";
+import {HyperbolicGeometryComponent} from "./demos/hyperbolic-geometry/hyperbolic-geometry.component";
 
 const routes: Routes = [
     {path: '', component: HomePageComponent},
@@ -26,6 +28,8 @@ const routes: Routes = [
     {path: 'unfolding-3d', component: Unfolding3DComponent},
     {path: 'tile-billiards', component: TileBilliardsComponent},
     {path: 'corridors', component: CorridorsComponent},
+    {path: 'scaling', component: ScalingBilliardsComponent},
+    {path: 'hyperbolic', component: HyperbolicGeometryComponent},
 ];
 
 @NgModule({

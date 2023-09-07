@@ -8,6 +8,7 @@
         <phase-picture
                 [polygon]="polygon"
                 [(state)]="state"
+                [phaseTile]="phaseTile"
                 class="bottom-left">
         </phase-picture>
     </div>
@@ -15,6 +16,7 @@
             [length]="length"
             [polygon]="polygon"
             [state]="state"
+            (phaseBoxesChange)="onNewPhaseTile($event)"
             class="right">
     </corridor-unfolder>
 </div>

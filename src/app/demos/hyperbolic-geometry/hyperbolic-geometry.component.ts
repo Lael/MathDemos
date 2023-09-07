@@ -1,0 +1,293 @@
+import {Component} from "@angular/core";
+import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
+import * as THREE from 'three';
+import {
+    BufferGeometry,
+    CircleGeometry,
+    Line,
+    LineBasicMaterial,
+    Mesh,
+    MeshBasicMaterial,
+    Object3D,
+    Raycaster,
+    Vector2
+} from 'three';
+import * as dat from 'dat.gui';
+import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
+import {HyperbolicModel, HyperGeodesic, HyperPoint} from "../../../math/hyperbolic/hyperbolic";
+import {DragControls} from "three/examples/jsm/controls/DragControls";
+import {Mobius} from "../../../math/mobius";
+import {Complex} from "../../../math/complex";
+
+// Colors
+const CLEAR_COLOR = 0x0a2933;
+const DISK_COLOR = 0xf9f4e9;
+const ORIGIN_COLOR = 0x881111;
+const DOT_COLOR = 0x111111;
+const LINE_COLOR = 0x111188;
+
+
+interface HyperCircle {
+    center: HyperPoint,
+    radius: number,
+}
+
+enum ToolMode {
+    Point = 'Point',
+    Circle = 'Circle',
+    Line = 'Line',
+    Delete = 'Delete',
+}
+
+@Component({
+    selector: 'billiards',
+    templateUrl: '../../widgets/three-demo/three-demo.component.html',
+    styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
+})
+export class HyperbolicGeometryComponent extends ThreeDemoComponent {
+    orbitControls: OrbitControls;
+    dragControls: DragControls;
+    draggables: Object3D[] = [];
+    dragging = false;
+    p1: HyperPoint | null = null;
+
+    // Parameters
+    params = {
+        modelPoincare: true,
+        modelKlein: false,
+        toolPoint: true,
+        toolLine: false,
+        toolCircle: false,
+        toolDelete: false,
+    };
+
+    oldModel = this.model;
+
+    translation = Mobius.blaschke(new Complex());
+    originHandle: Mesh;
+
+    // GUI
+    gui: dat.GUI;
+
+    // Stuff on the screen
+    disk = new Mesh();
+    points = new Map<Object3D, HyperPoint>();
+    circles = new Map<Object3D, HyperCircle>();
+    lines = new Map<Line, { p1: HyperPoint, p2: HyperPoint }>();
+
+    constructor() {
+        super();
+        this.useOrthographic = true;
+        this.updateOrthographicCamera();
+        this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.orbitControls.enableRotate = false;
+        this.orbitControls.enablePan = false;
+        this.dragControls = new DragControls(this.draggables, this.camera, this.renderer.domElement);
+        this.dragControls.addEventListener('dragstart', this.dragStart.bind(this));
+        this.dragControls.addEventListener('drag', this.drag.bind(this));
+        this.dragControls.addEventListener('dragend', this.dragEnd.bind(this));
+
+        this.renderer.setClearColor(CLEAR_COLOR);
+
+        const diskGeometry = new THREE.CircleGeometry(1, 256);
+        const diskMaterial = new THREE.MeshBasicMaterial({color: DISK_COLOR});
+
+        this.disk = new THREE.Mesh(diskGeometry, diskMaterial);
+
+        this.originHandle = new Mesh(new THREE.CircleGeometry(0.02, 256),
+            new THREE.MeshBasicMaterial({color: ORIGIN_COLOR}));
+        this.draggables.push(this.originHandle);
+
+        this.gui = new dat.GUI();
+        this.updateGUI();
+    }
+
+    override ngOnDestroy() {
+        super.ngOnDestroy();
+        this.gui.destroy();
+    }
+
+    override frame(dt: number) {
+        this.updateDraw();
+    }
+
+    updateGUI() {
+        this.gui.destroy();
+        this.gui = new dat.GUI();
+
+        const setModel = (model: HyperbolicModel) => {
+            const originHP = new HyperPoint(new Vector2(this.originHandle.position.x, this.originHandle.position.y),
+                this.oldModel);
+            this.params.modelPoincare = model === HyperbolicModel.POINCARE;
+            this.params.modelKlein = model === HyperbolicModel.KLEIN;
+            this.updateGUI();
+            const originVec = originHP.resolve(this.model);
+            this.originHandle.position.set(originVec.x, originVec.y, 0);
+            this.oldModel = this.model;
+        }
+
+        const modelFolder = this.gui.addFolder('Model');
+        modelFolder.add(this.params, 'modelPoincare').name('Poincaré')
+            .listen().onChange(() => setModel(HyperbolicModel.POINCARE));
+        modelFolder.add(this.params, 'modelKlein').name('Klein')
+            .onChange(() => setModel(HyperbolicModel.KLEIN));
+        modelFolder.open();
+
+        const setToolMode = (mode: ToolMode) => {
+            this.params.toolPoint = mode === ToolMode.Point;
+            this.params.toolLine = mode === ToolMode.Line;
+            this.params.toolCircle = mode === ToolMode.Circle;
+            this.params.toolDelete = mode === ToolMode.Delete;
+            this.updateGUI();
+        }
+
+        const toolFolder = this.gui.addFolder('Tool');
+        toolFolder.add(this.params, 'toolPoint').name('Point')
+            .listen().onChange(() => setToolMode(ToolMode.Point));
+        toolFolder.add(this.params, 'toolLine').name('Line')
+            .listen().onChange(() => setToolMode(ToolMode.Line));
+        // toolFolder.add(this.params, 'toolCircle').name('Circle')
+        //     .listen().onChange(() => setToolMode(ToolMode.Circle));
+        toolFolder.add(this.params, 'toolDelete').name('Delete')
+            .listen().onChange(() => setToolMode(ToolMode.Delete));
+        toolFolder.open();
+
+        this.gui.open();
+    }
+
+    override mousedown(e: MouseEvent) {
+        super.mousedown(e);
+        if (e.buttons !== 1 || !(e.target instanceof HTMLCanvasElement)) return;
+        if (this.dragging) {
+            return;
+        }
+
+        const aspectRatio = this.renderer.domElement.clientWidth / this.renderer.domElement.clientHeight;
+        const sx = (2 * e.clientX / this.renderer.domElement.clientWidth - 1) * aspectRatio / this.camera.zoom;
+        const sy = (1 - 2 * e.clientY / this.renderer.domElement.clientHeight) / this.camera.zoom;
+
+        if (sx * sx + sy * sy > 0.999) return;
+
+        let pt = new HyperPoint(new Vector2(sx, sy), this.model);
+        let hp = HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
+        const vec = hp.resolve(this.model);
+
+        const rc = new Raycaster();
+        rc.setFromCamera({
+            x: (e.clientX / window.innerWidth) * 2 - 1,
+            y: -(e.clientY / window.innerHeight) * 2 + 1
+        }, this.camera);
+        rc.params.Line!.threshold = 0.01;
+
+        const pointIntersections = rc.intersectObjects(Array.from(this.points.keys()));
+        const lineIntersections = rc.intersectObjects(Array.from(this.lines.keys()));
+        console.log(lineIntersections);
+
+        switch (this.toolMode) {
+        case ToolMode.Point:
+            const dot = new Mesh(new CircleGeometry(0.01, 32), new MeshBasicMaterial({color: DOT_COLOR}));
+            dot.position.set(vec.x, vec.y, 0);
+            this.points.set(dot, hp);
+            break;
+        case ToolMode.Circle:
+            break;
+        case ToolMode.Line:
+            if (pointIntersections.length > 0) {
+                pt = new HyperPoint(new Vector2(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y), this.model);
+                hp = HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
+            } else {
+                break;
+            }
+            if (this.p1 === null) {
+                this.p1 = hp;
+            } else {
+                const p = HyperPoint.fromPoincare(this.p1.poincare);
+                const g = new HyperGeodesic(p, hp);
+                const gi = new HyperGeodesic(g.ip, g.iq);
+                const arc = this.makeArc(gi);
+                this.lines.set(arc, {p1: g.ip, p2: g.iq});
+                this.p1 = null;
+            }
+            break;
+        case ToolMode.Delete:
+            for (let td of pointIntersections) {
+                this.points.delete(td.object);
+            }
+            if (lineIntersections.length > 0) {
+                this.lines.delete(lineIntersections[0].object as Line);
+            }
+        }
+    }
+
+    makeArc(g: HyperGeodesic): Line {
+        const points = g.interpolate(this.model, g.ip);
+        return new Line(
+            new BufferGeometry().setFromPoints(points.map(p => p.toVector2())),
+            new LineBasicMaterial({color: LINE_COLOR}),
+        );
+    }
+
+    override mousemove(e: MouseEvent) {
+        super.mousemove(e);
+        if (!this.dragging) return;
+
+    }
+
+    override mouseup(e: MouseEvent) {
+        super.mouseup(e);
+        // console.log(e);
+        // this.dragging = false;
+    }
+
+    dragStart() {
+        this.dragging = true;
+    }
+
+    drag() {
+        if (this.originHandle.position.length() > 0.999) this.originHandle.position.copy(
+            this.originHandle.position.clone().normalize().multiplyScalar(0.999)
+        );
+        const hp = new HyperPoint(new Complex(-this.originHandle.position.x, -this.originHandle.position.y), this.model);
+        this.translation = Mobius.blaschke(hp.poincare);
+    }
+
+    dragEnd() {
+        this.dragging = false;
+    }
+
+
+    updateDraw() {
+        this.scene.clear();
+        this.scene.add(this.disk);
+        this.scene.add(this.originHandle);
+
+        for (let [dot, hp] of this.points.entries()) {
+            const p = HyperPoint.fromPoincare(this.translation.apply(hp.poincare)).resolve(this.model);
+            dot.position.set(p.x, p.y, 0);
+            this.scene.add(dot);
+        }
+
+        for (let [arc, {p1, p2}] of this.lines.entries()) {
+            const g = new HyperGeodesic(
+                HyperPoint.fromPoincare(this.translation.apply(p1.poincare)),
+                HyperPoint.fromPoincare(this.translation.apply(p2.poincare)));
+            const points = g.interpolate(this.model, g.ip);
+            arc.geometry.setFromPoints(points.map(p => p.toVector2()));
+            this.scene.add(arc);
+        }
+    }
+
+    get model(): HyperbolicModel {
+        if (this.params.modelPoincare) return HyperbolicModel.POINCARE;
+        if (this.params.modelKlein) return HyperbolicModel.KLEIN;
+        throw Error('no model selected');
+    }
+
+    get toolMode(): ToolMode {
+        if (this.params.toolPoint) return ToolMode.Point;
+        if (this.params.toolLine) return ToolMode.Line;
+        if (this.params.toolCircle) return ToolMode.Circle;
+        if (this.params.toolDelete) return ToolMode.Delete;
+        throw Error('no tool mode selected');
+    }
+}

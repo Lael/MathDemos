@@ -40,6 +40,8 @@ import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.comp
 import {PhasePictureComponent} from "./demos/corridors/phase-picture.component";
 import {CorridorUnfolderComponent} from "./demos/corridors/corridor-unfolder.component";
 import {CorridorsComponent} from "./demos/corridors/corridors.component";
+import {ScalingBilliardsComponent} from "./demos/scaling-billiards/scaling-billiards.component";
+import {HyperbolicGeometryComponent} from "./demos/hyperbolic-geometry/hyperbolic-geometry.component";
 
 @NgModule({
     bootstrap: [AppComponent],
@@ -71,6 +73,8 @@ import {CorridorsComponent} from "./demos/corridors/corridors.component";
         PhasePictureComponent,
         CorridorUnfolderComponent,
         CorridorsComponent,
+        ScalingBilliardsComponent,
+        HyperbolicGeometryComponent,
     ],
     imports: [
         BrowserModule,

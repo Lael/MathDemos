@@ -42,6 +42,10 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         this.orthographicCamera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1);
         this.orthographicCamera.position.set(0, 0, 10);
 
+        document.addEventListener('mousedown', this.mousedown.bind(this));
+        document.addEventListener('mousemove', this.mousemove.bind(this));
+        document.addEventListener('mouseup', this.mouseup.bind(this));
+
         document.addEventListener('keydown', this.keydown.bind(this));
         document.addEventListener('keyup', this.keyup.bind(this));
         document.addEventListener('focusout', this.focusout.bind(this));
@@ -60,6 +64,18 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         document.body.removeChild(this.stats.dom);
         this.hostElement?.nativeElement.removeChild(this.renderer.domElement);
         this.renderer.dispose();
+    }
+
+    mousedown(e: MouseEvent) {
+
+    }
+
+    mousemove(e: MouseEvent) {
+
+    }
+
+    mouseup(e: MouseEvent) {
+
     }
 
     keydown(e: KeyboardEvent) {

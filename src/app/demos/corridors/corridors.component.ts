@@ -19,6 +19,20 @@ export interface Collision {
     right: Vector2;
 }
 
+export interface SubCorridor {
+    startPoint: Vector2;
+    startTime: number;
+    endPoint: Vector2;
+    endTime: number;
+    leftBound: Vector2;
+    rightBound: Vector2;
+}
+
+export interface PhaseTile {
+    subCorridors: SubCorridor[];
+    word: number[];
+}
+
 export class Polygon {
     sideLengths: number[] = [];
     vertexTimes: number[] = [0];
@@ -76,6 +90,16 @@ export class Polygon {
         throw Error(`Bad t: ${t}`);
     }
 
+    timeOf(v: Vector2): number {
+        const z = Complex.fromVector2(v);
+        for (let [i, segment] of this.sides.entries()) {
+            if (!segment.containsPoint(z)) continue;
+            const f = z.distance(segment.start) / this.perimeter;
+            return f + this.vertexTimes[i];
+        }
+        throw Error('Point not on polygon');
+    }
+
     cast(ray: Ray): Collision {
         let bestT = Number.POSITIVE_INFINITY;
         let collision: Collision | undefined = undefined;
@@ -93,8 +117,7 @@ export class Polygon {
             const sideVector = v2.clone().sub(v1);
             if (intersection.clone().sub(v1).dot(sideVector) < 0) continue;
             if (intersection.distanceTo(ray.src) < bestT && intersection.clone().sub(ray.src).dot(ray.dir) > 0) {
-                if (intersection.distanceTo(v1) < 0.000_001 || intersection.distanceTo(v2) < 0.000_001)
-                    throw Error('Hit a vertex');
+                if (intersection.equals(v1) || intersection.equals(v2)) throw Error('Hit a vertex');
 
                 // Otherwise, it is certain that one of v1, v2 is on the left and the other is on the right
                 const orientation = ray.dir.clone().rotateAround(new Vector2(), Math.PI / 2).dot(sideVector) > 0;
@@ -123,9 +146,10 @@ export class Polygon {
 export class CorridorsComponent implements OnDestroy {
     Restriction = PolygonRestriction;
     gui: dat.GUI;
-    length = 5;
+    length = 3;
     polygon: Polygon | undefined = undefined;
     state: Vector2 = new Vector2(0.123, 0.789);
+    phaseTile: PhaseTile = {subCorridors: [], word: []};
 
     constructor() {
         this.gui = new dat.GUI();
@@ -142,6 +166,10 @@ export class CorridorsComponent implements OnDestroy {
 
     onNewVertices(vertices: Vector2[]) {
         this.polygon = new Polygon(vertices);
+    }
+
+    onNewPhaseTile(tile: PhaseTile) {
+        this.phaseTile = tile;
     }
 
     frame(dt: number): void {

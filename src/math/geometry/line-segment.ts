@@ -3,19 +3,24 @@ import {Complex} from "../complex";
 import {Line} from "./line";
 import {ArcSegment} from "./arc-segment";
 import {closeEnough, normalizeAngle} from "../math-helpers";
+import {Vector2} from "three";
 
 export class LineSegment extends Segment {
+    private readonly p1: Complex;
+    private readonly p2: Complex;
     private readonly m;
     readonly line: Line;
     readonly length: number;
 
-    constructor(private readonly p1: Complex, private readonly p2: Complex) {
+    constructor(private readonly p: Complex | Vector2, private readonly q: Complex | Vector2) {
         super();
-        if (p1.isInfinite() || p2.isInfinite()) throw Error('Infinite line segment');
-        if (p1.equals(p2)) throw Error('Degenerate line segment');
-        this.m = p1.plus(p2).scale(0.5);
-        this.line = Line.throughTwoPoints(p1, p2);
-        this.length = p1.minus(p2).modulus();
+        if (p instanceof Vector2) this.p1 = Complex.fromVector2(p); else this.p1 = p;
+        if (q instanceof Vector2) this.p2 = Complex.fromVector2(q); else this.p2 = q;
+        if (this.p1.isInfinite() || this.p2.isInfinite()) throw Error('Infinite line segment');
+        if (this.p1.equals(this.p2)) throw Error('Degenerate line segment');
+        this.m = this.p1.plus(this.p2).scale(0.5);
+        this.line = Line.throughTwoPoints(this.p1, this.p2);
+        this.length = this.p1.minus(this.p2).modulus();
     }
 
     override get start() {
