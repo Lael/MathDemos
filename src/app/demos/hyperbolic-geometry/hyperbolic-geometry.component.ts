@@ -211,6 +211,7 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
                 const radius = this.center.distance(hp);
                 const circle = this.makeCircle(this.center, radius);
                 this.circles.set(circle, {center: HyperPoint.fromPoincare(this.center.poincare), radius});
+                this.center = null;
             }
             break;
         case ToolMode.Line:
