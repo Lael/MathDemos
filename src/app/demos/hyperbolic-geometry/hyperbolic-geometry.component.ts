@@ -10,6 +10,7 @@ import {
     MeshBasicMaterial,
     Object3D,
     Raycaster,
+    ShapeGeometry,
     Vector2
 } from 'three';
 import * as dat from 'dat.gui';
@@ -18,6 +19,7 @@ import {HyperbolicModel, HyperGeodesic, HyperPoint} from "../../../math/hyperbol
 import {DragControls} from "three/examples/jsm/controls/DragControls";
 import {Mobius} from "../../../math/mobius";
 import {Complex} from "../../../math/complex";
+import {lpCircle} from "../../../math/billiards/oval-table";
 
 // Colors
 const CLEAR_COLOR = 0x0a2933;
@@ -50,6 +52,7 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
     draggables: Object3D[] = [];
     dragging = false;
     p1: HyperPoint | null = null;
+    center: HyperPoint | null = null;
 
     // Parameters
     params = {
@@ -71,8 +74,8 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
 
     // Stuff on the screen
     disk = new Mesh();
-    points = new Map<Object3D, HyperPoint>();
-    circles = new Map<Object3D, HyperCircle>();
+    points = new Map<Mesh, HyperPoint>();
+    circles = new Map<Line, HyperCircle>();
     lines = new Map<Line, { p1: HyperPoint, p2: HyperPoint }>();
 
     constructor() {
@@ -94,7 +97,8 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
 
         this.disk = new THREE.Mesh(diskGeometry, diskMaterial);
 
-        this.originHandle = new Mesh(new THREE.CircleGeometry(0.02, 256),
+        let shape = new THREE.Shape(lpCircle(0.5).points(256).map(p => p.multiplyScalar(0.025)));
+        this.originHandle = new Mesh(new ShapeGeometry(shape),
             new THREE.MeshBasicMaterial({color: ORIGIN_COLOR}));
         this.draggables.push(this.originHandle);
 
@@ -146,13 +150,18 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
             .listen().onChange(() => setToolMode(ToolMode.Point));
         toolFolder.add(this.params, 'toolLine').name('Line')
             .listen().onChange(() => setToolMode(ToolMode.Line));
-        // toolFolder.add(this.params, 'toolCircle').name('Circle')
-        //     .listen().onChange(() => setToolMode(ToolMode.Circle));
+        toolFolder.add(this.params, 'toolCircle').name('Circle')
+            .listen().onChange(() => setToolMode(ToolMode.Circle));
         toolFolder.add(this.params, 'toolDelete').name('Delete')
             .listen().onChange(() => setToolMode(ToolMode.Delete));
         toolFolder.open();
 
         this.gui.open();
+    }
+
+    untranslatedHyperpoint(x: number, y: number): HyperPoint {
+        const pt = new HyperPoint(new Vector2(x, y), this.model);
+        return HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
     }
 
     override mousedown(e: MouseEvent) {
@@ -177,24 +186,36 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
             x: (e.clientX / window.innerWidth) * 2 - 1,
             y: -(e.clientY / window.innerHeight) * 2 + 1
         }, this.camera);
-        rc.params.Line!.threshold = 0.01;
+        rc.params.Line!.threshold = 0.05;
 
         const pointIntersections = rc.intersectObjects(Array.from(this.points.keys()));
         const lineIntersections = rc.intersectObjects(Array.from(this.lines.keys()));
-        console.log(lineIntersections);
+        const circleIntersections = rc.intersectObjects(Array.from(this.circles.keys()));
 
         switch (this.toolMode) {
         case ToolMode.Point:
-            const dot = new Mesh(new CircleGeometry(0.01, 32), new MeshBasicMaterial({color: DOT_COLOR}));
+            if (pointIntersections.length > 0) {
+                break;
+            }
+            const dot = new Mesh(new CircleGeometry(0.005, 32), new MeshBasicMaterial({color: DOT_COLOR}));
             dot.position.set(vec.x, vec.y, 0);
             this.points.set(dot, hp);
             break;
         case ToolMode.Circle:
+            if (pointIntersections.length > 0) {
+                hp = this.untranslatedHyperpoint(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y);
+            }
+            if (this.center === null) {
+                this.center = hp;
+            } else {
+                const radius = this.center.distance(hp);
+                const circle = this.makeCircle(this.center, radius);
+                this.circles.set(circle, {center: HyperPoint.fromPoincare(this.center.poincare), radius});
+            }
             break;
         case ToolMode.Line:
             if (pointIntersections.length > 0) {
-                pt = new HyperPoint(new Vector2(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y), this.model);
-                hp = HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
+                hp = this.untranslatedHyperpoint(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y);
             } else {
                 break;
             }
@@ -211,10 +232,13 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
             break;
         case ToolMode.Delete:
             for (let td of pointIntersections) {
-                this.points.delete(td.object);
+                this.points.delete(td.object as Mesh);
             }
             if (lineIntersections.length > 0) {
                 this.lines.delete(lineIntersections[0].object as Line);
+            }
+            if (circleIntersections.length > 0) {
+                this.circles.delete(circleIntersections[0].object as Line);
             }
         }
     }
@@ -227,15 +251,36 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
         );
     }
 
+    getCirclePoints(center: HyperPoint, radius: number): HyperPoint[] {
+        const numPoints = 256;
+        const pr = HyperPoint.trueToPoincare(radius);
+        const points: HyperPoint[] = [];
+        const slide = Mobius.blaschke(center.poincare.scale(-1));
+        for (let i = 0; i <= numPoints; i++) {
+            const theta = Math.PI * 2 * i / numPoints;
+            points.push(
+                HyperPoint.fromPoincare(slide.apply(new Complex(pr * Math.cos(theta), pr * Math.sin(theta))))
+            );
+        }
+        return points;
+    }
+
+    makeCircle(center: HyperPoint, radius: number): Line {
+        const points = this.getCirclePoints(center, radius);
+        return new Line(
+            new BufferGeometry().setFromPoints(points.map(p => p.resolve(this.model).toVector2())),
+            new LineBasicMaterial({color: LINE_COLOR}),
+        );
+    }
+
     override mousemove(e: MouseEvent) {
         super.mousemove(e);
-        if (!this.dragging) return;
+        // if (!this.dragging) return;
 
     }
 
     override mouseup(e: MouseEvent) {
         super.mouseup(e);
-        // console.log(e);
         // this.dragging = false;
     }
 
@@ -274,6 +319,15 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
             const points = g.interpolate(this.model, g.ip);
             arc.geometry.setFromPoints(points.map(p => p.toVector2()));
             this.scene.add(arc);
+        }
+
+        for (let [circle, {center, radius}] of this.circles.entries()) {
+            const points = this.getCirclePoints(center, radius).map(p => {
+                const tp = HyperPoint.fromPoincare(this.translation.apply(p.poincare));
+                return tp.resolve(this.model).toVector2()
+            });
+            circle.geometry.setFromPoints(points);
+            this.scene.add(circle);
         }
     }
 
