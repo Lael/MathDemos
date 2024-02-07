@@ -1,7 +1,8 @@
 import {NgModule} from '@angular/core';
 import {BrowserModule} from '@angular/platform-browser';
+import {provideRoutes} from "@angular/router";
 
-import {AppRoutingModule} from './app-routing.module';
+import {AppRoutingModule, routes} from './app-routing.module';
 import {AppComponent} from './app.component';
 import {HomePageComponent} from './home-page/home-page.component';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
@@ -97,7 +98,7 @@ import {SymmetricComponent} from "./demos/symmetry/symmetric.component";
         MatIconModule,
         MatButtonToggleModule,
     ],
-    providers: []
+    providers: [provideRoutes(routes)]
 })
 export class AppModule {
 }

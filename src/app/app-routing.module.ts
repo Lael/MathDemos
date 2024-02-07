@@ -16,7 +16,7 @@ import {TicktockComponent} from "./demos/ticktock/ticktock.component";
 import {TriangleMapComponent} from "./demos/triangle-map/triangle-map.component";
 import {SymmetricComponent} from "./demos/symmetry/symmetric.component";
 
-const routes: Routes = [
+export const routes: Routes = [
     {path: '', component: HomePageComponent},
     // {path: SURFACES_PATH, component: SurfacesDemoComponent},
     // {path: FUNCTIONS_PATH, component: FunctionsDemoComponent},
