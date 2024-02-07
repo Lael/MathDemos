@@ -206,7 +206,10 @@ export class NewHyperbolicPolygonTable {
         for (let i = 0; i < this.n; i++) {
             // for (let i = 0; i < 1; i++) {
             const g = this.polygon.geodesics[i];
-            frontier.push(new HyperGeodesic(g.p, g.ip));
+            let n = 2;
+            let n1 = g.p.translate(g.ip, g.length * n);
+            let n2 = g.p.translate(g.ip, g.length * (n + 1));
+            frontier.push(new HyperGeodesic(n1, n2));
         }
         for (let i = 0; i < iterations; i++) {
             // wait until there are enough preimages to use all the workers

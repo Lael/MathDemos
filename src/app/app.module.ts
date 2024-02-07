@@ -42,6 +42,9 @@ import {CorridorUnfolderComponent} from "./demos/corridors/corridor-unfolder.com
 import {CorridorsComponent} from "./demos/corridors/corridors.component";
 import {ScalingBilliardsComponent} from "./demos/scaling-billiards/scaling-billiards.component";
 import {HyperbolicGeometryComponent} from "./demos/hyperbolic-geometry/hyperbolic-geometry.component";
+import {TicktockComponent} from "./demos/ticktock/ticktock.component";
+import {TriangleMapComponent} from "./demos/triangle-map/triangle-map.component";
+import {SymmetricComponent} from "./demos/symmetry/symmetric.component";
 
 @NgModule({
     bootstrap: [AppComponent],
@@ -75,6 +78,9 @@ import {HyperbolicGeometryComponent} from "./demos/hyperbolic-geometry/hyperboli
         CorridorsComponent,
         ScalingBilliardsComponent,
         HyperbolicGeometryComponent,
+        TicktockComponent,
+        TriangleMapComponent,
+        SymmetricComponent,
     ],
     imports: [
         BrowserModule,

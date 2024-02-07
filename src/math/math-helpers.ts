@@ -1,4 +1,5 @@
 import {Complex} from "./complex";
+import {Vector2} from "three";
 
 export function normalizeAngle(theta: number, low: number = -Math.PI) {
     if (!isFinite(theta)) throw Error('Cannot normalize non-finite number');
@@ -9,7 +10,7 @@ export function normalizeAngle(theta: number, low: number = -Math.PI) {
 
 export function closeEnough(r1: number, r2: number) {
     if (!isFinite(r1) || !isFinite(r2)) return false;
-    return Math.abs(r1 - r2) < 0.000_000_1;
+    return Math.abs(r1 - r2) < 0.000_000_001;
 }
 
 export function solveQuadratic(a: Complex, b: Complex, c: Complex): Complex[] {
@@ -33,4 +34,10 @@ export function lcm(a: number, b: number): number {
         if (guess % small === 0) return guess;
     }
     return small * large;
+}
+
+export function includedAngle(p1: Vector2, p2: Vector2, p3: Vector2) {
+    let d1 = p1.clone().sub(p2);
+    let d2 = p3.clone().sub(p2);
+    return Math.acos(d1.dot(d2) / (d1.length() * d2.length()));
 }

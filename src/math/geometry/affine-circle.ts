@@ -25,7 +25,7 @@ export class AffineCircle {
         if (d === this.radius + other.radius) return [this.center.plus(v.normalize(this.radius))];
         const x = (d * d - other.radius * other.radius + this.radius * this.radius) / (2 * d);
         const y = Math.sqrt(this.radius * this.radius - x * x);
-        if (isNaN(y)) console.log(this.radius, other.radius, d, x);
+        // if (isNaN(y)) console.log(this.radius, other.radius, d, x);
         const c = this.center.plus(v.normalize(x));
         const perp = v.times(Complex.I).normalize(y);
         return [c.plus(perp), c.minus(perp)];

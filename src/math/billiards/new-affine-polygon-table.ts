@@ -310,7 +310,6 @@ export class NewAffinePolygonTable {
                     points.push(newPoint);
                     centers.push(circle.center);
                 } catch (e) {
-                    // console.log(points.length, e);
                     return [points, centers];
                 }
                 break;

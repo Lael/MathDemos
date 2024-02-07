@@ -2,3 +2,7 @@
      class="renderer-container"
      (resize)="onResize()">
 </div>
+
+<div *ngIf="showHelp">
+    {{help()}}
+</div>

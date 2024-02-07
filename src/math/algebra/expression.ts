@@ -17,15 +17,28 @@ export class Expression {
     static tokenize(text: string): Token[] {
         const tokens: Token[] = [];
         let remainder = text.toLowerCase().replace(/\s/g, '');
+        let t: Token | undefined = undefined;
         while (remainder.length > 0) {
-            const t = Expression.nextToken(remainder);
+            t = Expression.nextToken(remainder, t);
             tokens.push(t);
             remainder = remainder.substring(t.text.length);
         }
         return tokens;
     }
 
-    static nextToken(text: string): Token {
+    static nextToken(text: string, lastToken?: Token): Token {
+        // if the next character is a minus sign:
+        //      if the previous token is an open paren, a binary operation, or nothing, then we should treat - as a
+        //          unary operator
+        //      if the previous token is a close paren, a variable, a number, ???, it should be treated as a binary
+        //          operator
+        if (text.startsWith('-')) {
+            if (!lastToken ||
+                lastToken.type == ExpressionNodeType.BINARY ||
+                (lastToken.type == ExpressionNodeType.DELIMITER && lastToken.text == '(')) {
+                return UNARY_MINUS_TOKEN;
+            }
+        }
         for (let i = 0; i < TOKENS.length; i++) {
             if (text.startsWith(TOKENS[i].text)) return TOKENS[i];
         }
@@ -75,9 +88,17 @@ type BinaryOperator = (a: number, b: number) => number;
 
 interface Token {
     text: string,
-    content: number|string|UnaryOperator|BinaryOperator|null,
+    content: number | string | UnaryOperator | BinaryOperator | null,
     type: ExpressionNodeType,
 }
+
+// a - b
+// -1
+// -b
+// exp(-a)
+// if we have a minus
+
+const UNARY_MINUS_TOKEN = {text: '-', content: (a: number) => -a, type: ExpressionNodeType.UNARY};
 
 const TOKENS: Token[] = [
     {text: '(', content: null, type: ExpressionNodeType.DELIMITER},
@@ -130,25 +151,25 @@ class ExpressionNode {
         if (i < trimmedTokens.length) children.push(new ExpressionNode(trimmedTokens.slice(i + 1, trimmedTokens.length)));
 
         switch (token.type) {
-            case ExpressionNodeType.NUMBER:
-                if (typeof token.content !== 'number') throw Error('number node should have number content');
-                if (children.length !== 0) throw Error('number node should not have any children');
-                break;
-            case ExpressionNodeType.VARIABLE:
-                if (typeof token.content !== 'string') throw Error('variable node should have string content');
-                if (children.length !== 0) throw Error('variable node should not have any children');
-                break;
-            case ExpressionNodeType.UNARY:
-                // if (token.content !instanceof ) throw Error('function node should have function content');
-                if (children.length !== 1) throw Error('function node should have two children');
-                break;
-            case ExpressionNodeType.BINARY:
-                // if (token.content !instanceof BinaryOperation)
-                //     throw Error('binary operation node should have binary operation content');
-                if (children.length !== 2) throw Error('binary operation node should have one child');
-                break;
-            default:
-                throw Error('unknown expression node type');
+        case ExpressionNodeType.NUMBER:
+            if (typeof token.content !== 'number') throw Error('number node should have number content');
+            if (children.length !== 0) throw Error('number node should not have any children');
+            break;
+        case ExpressionNodeType.VARIABLE:
+            if (typeof token.content !== 'string') throw Error('variable node should have string content');
+            if (children.length !== 0) throw Error('variable node should not have any children');
+            break;
+        case ExpressionNodeType.UNARY:
+            // if (token.content !instanceof ) throw Error('function node should have function content');
+            if (children.length !== 1) throw Error('function node should have two children');
+            break;
+        case ExpressionNodeType.BINARY:
+            // if (token.content !instanceof BinaryOperation)
+            //     throw Error('binary operation node should have binary operation content');
+            if (children.length !== 2) throw Error('binary operation node should have one child');
+            break;
+        default:
+            throw Error('unknown expression node type');
         }
         this.token = token;
         this.children = children;
@@ -165,26 +186,28 @@ class ExpressionNode {
         }
 
         let parenDepth = 0;
-        const bini: number[] = [];
-        const bint: string[] = [];
+        const binaryOperatorIndices: number[] = [];
+        const binaryOperatorText: string[] = [];
         for (let i = 0; i < tokens.length; i++) {
             const t = tokens[i];
-            if (t.text === '(') parenDepth ++;
-            if (t.text === ')') parenDepth --;
+            if (t.text === '(') parenDepth++;
+            if (t.text === ')') parenDepth--;
             if (parenDepth === 0 && t.type === ExpressionNodeType.BINARY) {
-                bini.push(i);
-                bint.push(t.text);
+                binaryOperatorIndices.push(i);
+                binaryOperatorText.push(t.text);
             }
         }
-        console.log(bint);
-        for (let i = 0; i < bini.length; i++) {
-            if (bint[i] === '+' || bint[i] === '-') return bini[i];
+        for (let i = 0; i < binaryOperatorIndices.length; i++) {
+            if (binaryOperatorText[i] === '+' || binaryOperatorText[i] === '-') return binaryOperatorIndices[i];
         }
-        for (let i = 0; i < bini.length; i++) {
-            if (bint[i] === '*' || bint[i] === '/') return bini[i];
+
+        if (tokens[0] === UNARY_MINUS_TOKEN) return 0;
+
+        for (let i = 0; i < binaryOperatorIndices.length; i++) {
+            if (binaryOperatorText[i] === '*' || binaryOperatorText[i] === '/') return binaryOperatorIndices[i];
         }
-        for (let i = 0; i < bini.length; i++) {
-            if (bint[i] === '^') return bini[i];
+        for (let i = 0; i < binaryOperatorIndices.length; i++) {
+            if (binaryOperatorText[i] === '^') return binaryOperatorIndices[i];
         }
 
         throw Error('no splitting index');
@@ -194,10 +217,10 @@ class ExpressionNode {
         let depth = 0;
         for (let i = 0; i < tokens.length; i++) {
             const t = tokens[i];
-            if (t.text === '(') depth ++;
+            if (t.text === '(') depth++;
             if (t.text === ')') {
                 if (depth === 0) return false;
-                depth --;
+                depth--;
             }
         }
         return depth === 0;
@@ -217,22 +240,22 @@ class ExpressionNode {
     evaluate(variables: Map<string, number>): number {
         const childrenValues = this.children.map(c => c.evaluate(variables));
         switch (this.token.type) {
-            case ExpressionNodeType.NUMBER:
-                return <number>this.token.content;
-            case ExpressionNodeType.VARIABLE:
-                const variableValue = variables.get(<string>this.token.content);
-                if (!variableValue || isNaN(variableValue)) throw Error('variable value not supplied');
-                return variableValue;
-            case ExpressionNodeType.UNARY:
-                const unaryResult = (<UnaryOperator>this.token.content)(childrenValues[0]);
-                if (isNaN(unaryResult)) throw Error('unary operation output is NaN');
-                return unaryResult;
-            case ExpressionNodeType.BINARY:
-                const binaryResult = (<BinaryOperator>this.token.content)(childrenValues[0], childrenValues[1]);
-                if (isNaN(binaryResult)) throw Error('binary operation output is NaN');
-                return binaryResult;
-            default:
-                throw Error('unknown expression node type');
+        case ExpressionNodeType.NUMBER:
+            return <number>this.token.content;
+        case ExpressionNodeType.VARIABLE:
+            const variableValue = variables.get(<string>this.token.content);
+            if (!variableValue || isNaN(variableValue)) throw Error('variable value not supplied');
+            return variableValue;
+        case ExpressionNodeType.UNARY:
+            const unaryResult = (<UnaryOperator>this.token.content)(childrenValues[0]);
+            if (isNaN(unaryResult)) throw Error('unary operation output is NaN');
+            return unaryResult;
+        case ExpressionNodeType.BINARY:
+            const binaryResult = (<BinaryOperator>this.token.content)(childrenValues[0], childrenValues[1]);
+            if (isNaN(binaryResult)) throw Error('binary operation output is NaN');
+            return binaryResult;
+        default:
+            throw Error('unknown expression node type');
         }
     }
 

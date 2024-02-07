@@ -14,7 +14,7 @@ import {
     Object3D,
     Shape,
     Vector2,
-    Vector3
+    Vector4
 } from 'three';
 import * as dat from 'dat.gui';
 import {Duality, Flavor, Plane} from "../../../math/billiards/new-billiard";
@@ -26,8 +26,8 @@ import {fixTime} from "../../../math/billiards/tables";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {DragControls} from "three/examples/jsm/controls/DragControls";
 import {AffineSemicircleTable} from "../../../math/billiards/affine-semicircle-table";
-import {clamp} from "three/src/math/MathUtils";
 import {normalizeAngle} from "../../../math/math-helpers";
+import {clamp} from "three/src/math/MathUtils";
 
 // Colors
 const CLEAR_COLOR = 0x0a2933;
@@ -40,6 +40,12 @@ const END_POINT_COLOR = 0x6f51e7;
 const SCAFFOLD_COLOR = 0xffbbff;
 const HANDLE_COLOR = 0x990044;
 const CIRCLE_CENTER_COLOR = 0xf5dd90;
+
+enum TableType {
+    POLYGON = 'Polygon',
+    SEMIDISK = 'Semidisk',
+    SUPERELLIPSE = 'Superellipse',
+}
 
 @Component({
     selector: 'billiards',
@@ -61,9 +67,10 @@ export class BilliardsComponent extends ThreeDemoComponent {
     };
 
     tableParams = {
+        tableType: TableType.POLYGON,
         n: 3,
         radius: 1,
-        semidisk: false,
+        p: 1.5,
     };
 
     drawParams = {
@@ -71,7 +78,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
         singularities: true,
         singularityIterations: 100,
         orbit: true,
-        orbitPaths: true,
+        connectEvery: 1,
         derivative: false,
         derivativeBound: 5,
         derivativeStep: -1,
@@ -292,19 +299,31 @@ export class BilliardsComponent extends ThreeDemoComponent {
         billiardFolder.open();
 
         const tableFolder = this.gui.addFolder('Table');
-        tableFolder.add(this.tableParams, 'n')
-            .min(2).max(12).step(1).name('n')
-            .onFinishChange(this.updateTableParams.bind(this));
         if (this.plane === Plane.HYPERBOLIC) {
             tableFolder.add(this.tableParams, 'radius')
                 .min(0.01).max(2).step(0.01).name('Radius')
-                .onChange(() => {
+                .onFinishChange(() => {
                     this.gameParams.tilingPolygon = 0;
                     this.updateTableParams();
                 });
         }
         if (this.plane === Plane.AFFINE && this.duality === Duality.OUTER) {
-            tableFolder.add(this.tableParams, 'semidisk').name('Semi-disk')
+            tableFolder.add(this.tableParams, 'tableType').options(Object.values(TableType)).name('Table Type')
+                .onFinishChange(this.updateTableParams.bind(this));
+            switch (this.tableParams.tableType as TableType) {
+            case TableType.POLYGON:
+                tableFolder.add(this.tableParams, 'n')
+                    .min(2).max(12).step(1).name('n')
+                    .onFinishChange(this.updateTableParams.bind(this));
+                break;
+            case TableType.SUPERELLIPSE:
+                tableFolder.add(this.tableParams, 'p')
+                    .min(1).max(12).step(0.1).name('p')
+                break;
+            }
+        } else {
+            tableFolder.add(this.tableParams, 'n')
+                .min(2).max(12).step(1).name('n')
                 .onFinishChange(this.updateTableParams.bind(this));
         }
         tableFolder.open();
@@ -335,8 +354,9 @@ export class BilliardsComponent extends ThreeDemoComponent {
                 .min(-8).max(0).step(1)
                 .onFinishChange(this.markDerivativeDirty.bind(this));
         }
-        drawFolder.add(this.drawParams, 'orbitPaths').name('Orbit Paths').onFinishChange(
-            this.markOrbitDirty.bind(this));
+        drawFolder.add(this.drawParams, 'connectEvery').name('Connect every')
+            .min(0).max(12).step(1)
+            .onFinishChange(this.markOrbitDirty.bind(this));
         drawFolder.open();
 
         const gameFolder = this.gui.addFolder('Game');
@@ -367,7 +387,8 @@ export class BilliardsComponent extends ThreeDemoComponent {
     }
 
     makeTiling() {
-        if (!(this.duality === Duality.OUTER && this.flavor === Flavor.REGULAR && this.plane === Plane.HYPERBOLIC)) {
+        if (!(this.duality === Duality.OUTER && this.flavor === Flavor.REGULAR && this.plane === Plane.HYPERBOLIC)
+            || this.gameParams.tilingPolygon < 3) {
             return;
         }
         const n = this.tableParams.n;
@@ -383,6 +404,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
         const ko = HyperPoint.poincareToKlein(po);
         const kl = ko * Math.cos(Math.PI / n);
 
+        console.log('updating radius!')
         this.tableParams.radius = HyperPoint.kleinToTrue(kl); // something
         this.updateBilliardTypeParams();
     }
@@ -441,7 +463,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
         const points = [];
         this.scene.remove(...this.draggables);
         while (this.draggables.length) this.draggables.pop();
-        if (this.tableParams.semidisk) {
+        if (this.tableParams.tableType === TableType.SEMIDISK) {
             for (let i = 0; i <= 90; i++) {
                 points.push(new Vector2(
                     Math.cos(i * Math.PI / 90),
@@ -494,7 +516,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
         let vertices: Vector2[] = [];
         switch (this.plane) {
         case Plane.AFFINE:
-            if (this.tableParams.semidisk) {
+            if (this.tableParams.tableType === TableType.SEMIDISK) {
                 this.scene.add(this.semidisk);
             } else {
                 vertices = this.draggables.map(d => new Vector2(d.position.x, d.position.y));
@@ -512,7 +534,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
 
         if (this.duality === Duality.INNER && this.singularities) this.scene.remove(this.singularities);
 
-        if (!this.tableParams.semidisk) {
+        if (this.tableParams.tableType !== TableType.SEMIDISK) {
             let shape = new THREE.Shape(vertices);
             const geometry = new THREE.ShapeGeometry(shape);
             const material = new THREE.MeshBasicMaterial({color: FILL_COLOR});
@@ -545,8 +567,8 @@ export class BilliardsComponent extends ThreeDemoComponent {
         const si = this.dragging ? Math.min(this.drawParams.singularityIterations, 1) : this.drawParams.singularityIterations;
         switch (this.plane) {
         case Plane.AFFINE:
-            if (this.tableParams.semidisk) {
-                preimages = this.semiDiskTable.preimages(this.flavor, si)
+            if (this.tableParams.tableType === TableType.SEMIDISK) {
+                preimages = this.semiDiskTable.preimages(this.flavor, Math.max(si, 10))
             } else {
                 preimages = this.affineTable.preimages(this.flavor, si)
             }
@@ -584,13 +606,13 @@ export class BilliardsComponent extends ThreeDemoComponent {
             this.scene.remove(this.derivatives);
         } catch (e) {
         }
-        const values = new Map<Vector2, Vector3>();
+        const values = new Map<Vector2, Vector4>();
         const delta = 0.000_001;
         const bound = this.drawParams.derivativeBound;
         const step = Math.pow(2,
             this.dragging ? Math.max(this.drawParams.derivativeStep, -1) : this.drawParams.derivativeStep
         );
-        const table = this.tableParams.semidisk ? this.semiDiskTable : this.affineTable;
+        const table = this.tableParams.tableType === TableType.SEMIDISK ? this.semiDiskTable : this.affineTable;
         for (let i = -bound; i <= bound; i += step) {
             for (let j = -bound; j < bound; j += step) {
                 const start = new Vector2(i, j);
@@ -606,11 +628,14 @@ export class BilliardsComponent extends ThreeDemoComponent {
                 const det = dx.cross(dy) / (delta * delta);
                 const rotX = dx.angle();
                 const rotY = dy.angle() - Math.PI / 2;
+                const tangentPoint = table.forwardPoint(start);
+                let d = image.distanceTo(tangentPoint) - start.distanceTo(tangentPoint);
                 if (Math.abs(det) < 0.000_000_1) continue;
-                values.set(start, new Vector3(
+                values.set(start, new Vector4(
                     det,
                     rotX,
                     rotY,
+                    d
                 ));
             }
         }
@@ -625,8 +650,8 @@ export class BilliardsComponent extends ThreeDemoComponent {
             im.setMatrixAt(i, new Matrix4().makeTranslation(pos.x, pos.y, -step * 2));
             im.setColorAt(i, new Color().setRGB(
                 lv < 0 ? Math.pow(clamp(-lv, 0, 1), s) : 0,
-                lv > 0 ? Math.pow(clamp(lv, 0, 1), s) / 2 : 0,
                 lv > 0 ? Math.pow(clamp(lv, 0, 1), s) : 0,
+                val.w,
             ));
             i++;
         }
@@ -714,7 +739,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
                 this.orbit = new THREE.Line(geometry, material);
                 break;
             case Duality.OUTER:
-                const table = this.tableParams.semidisk ? this.semiDiskTable : this.affineTable;
+                const table = this.tableParams.tableType === TableType.SEMIDISK ? this.semiDiskTable : this.affineTable;
                 const result = table.iterateOuter(this.affineOuterStart, this.flavor, it);
                 const orbit = result[0];
                 if (orbit.length > 1 && this.flavor === Flavor.SYMPLECTIC && this.drawParams.scaffold) {
@@ -749,16 +774,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
                 startPointPosition = this.affineOuterStart;
                 nextPointPosition = orbit.length > 1 ? orbit[1] : startPointPosition;
 
-                if (this.drawParams.orbitPaths) {
-                    geometry = new THREE.BufferGeometry().setFromPoints(orbit);
-                    material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
-                    this.orbit = new THREE.Line(geometry, material);
-                    if (result.length > 1 && this.flavor === Flavor.SYMPLECTIC && this.drawParams.centers) {
-                        const linegeometry = new THREE.BufferGeometry().setFromPoints(result[1]);
-                        const linematerial = new THREE.LineBasicMaterial({color: CIRCLE_CENTER_COLOR});
-                        this.centers = new THREE.Line(linegeometry, linematerial);
-                    }
-                } else {
+                if (this.drawParams.connectEvery == 0) {
                     this.orbit = new THREE.Points();
                     (this.orbit as THREE.Points).geometry.setFromPoints(orbit);
                     ((this.orbit as THREE.Points).material as THREE.PointsMaterial).color = new Color(OUTER_ORBIT_COLOR);
@@ -767,6 +783,20 @@ export class BilliardsComponent extends ThreeDemoComponent {
                         (this.centers as THREE.Points).geometry.setFromPoints(result[1]);
                         ((this.centers as THREE.Points).material as THREE.PointsMaterial).color = new Color(CIRCLE_CENTER_COLOR);
                     }
+                    break;
+                }
+                // connectEvery > 0
+                const seq = [];
+                for (let i = 0; i < orbit.length; i += this.drawParams.connectEvery) {
+                    seq.push(orbit[i]);
+                }
+                geometry = new THREE.BufferGeometry().setFromPoints(seq);
+                material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
+                this.orbit = new THREE.Line(geometry, material);
+                if (result.length > 1 && this.flavor === Flavor.SYMPLECTIC && this.drawParams.centers) {
+                    const lineGeometry = new THREE.BufferGeometry().setFromPoints(result[1]);
+                    const lineMaterial = new THREE.LineBasicMaterial({color: CIRCLE_CENTER_COLOR});
+                    this.centers = new THREE.Line(lineGeometry, lineMaterial);
                 }
                 break;
             default:
@@ -802,21 +832,7 @@ export class BilliardsComponent extends ThreeDemoComponent {
                 if (orbit.length > 1) nextPointPosition = orbit[1].resolve(this.model).toVector2();
                 else nextPointPosition = orbit[0].resolve(this.model).toVector2();
 
-                if (this.drawParams.orbitPaths) {
-                    points = [];
-                    for (let i = 0; i < orbit.length - 1; i++) {
-                        const o1 = orbit[i];
-                        const o2 = orbit[i + 1];
-                        const g = new HyperGeodesic(o1, o2);
-                        points.push(...g.interpolate(
-                            this.model,
-                            g.start,
-                            true).map(c => c.toVector2()));
-                    }
-                    geometry = new THREE.BufferGeometry().setFromPoints(points);
-                    material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
-                    this.orbit = new THREE.Line(geometry, material);
-                } else {
+                if (this.drawParams.connectEvery == 0) {
                     geometry = new THREE.CircleGeometry(0.005, 16);
                     material = new THREE.MeshBasicMaterial({color: OUTER_ORBIT_COLOR});
                     this.orbit = new THREE.InstancedMesh(geometry, material, orbit.length);
@@ -828,7 +844,22 @@ export class BilliardsComponent extends ThreeDemoComponent {
                                 0));
                     }
                     (this.orbit as THREE.InstancedMesh).instanceMatrix.needsUpdate = true;
+                    break;
                 }
+                // connectEvery > 0
+                points = [];
+                for (let i = 0; i < orbit.length - 1; i++) {
+                    const o1 = orbit[i];
+                    const o2 = orbit[i + 1];
+                    const g = new HyperGeodesic(o1, o2);
+                    points.push(...g.interpolate(
+                        this.model,
+                        g.start,
+                        true).map(c => c.toVector2()));
+                }
+                geometry = new THREE.BufferGeometry().setFromPoints(points);
+                material = new THREE.LineBasicMaterial({color: OUTER_ORBIT_COLOR});
+                this.orbit = new THREE.Line(geometry, material);
                 break;
             default:
                 throw Error('Unknown duality');

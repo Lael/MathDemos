@@ -80,39 +80,50 @@ export class HyperPoint implements PointLike {
         if (p instanceof Vector2) c = Complex.fromVector2(p);
         else c = p;
         switch (model) {
-            case HyperbolicModel.POINCARE:
-                validatePoincare(c);
-                this.poincare = c;
-                this.klein = poincareToKlein(c);
-                this.halfPlane = poincareToHalfPlane(c);
-                break;
-            case HyperbolicModel.KLEIN:
-                validateKlein(c);
-                this.poincare = kleinToPoincare(c);
-                this.klein = c;
-                this.halfPlane = kleinToHalfPlane(c);
-                break;
-            case HyperbolicModel.HALF_PLANE:
-                validateHalfPlane(c);
-                this.poincare = halfPlaneToPoincare(c);
-                this.klein = halfPlaneToKlein(c);
-                this.halfPlane = c;
-                break;
-            default:
-                throw new Error('Unknown hyperbolic model');
+        case HyperbolicModel.POINCARE:
+            validatePoincare(c);
+            this.poincare = c;
+            this.klein = poincareToKlein(c);
+            this.halfPlane = poincareToHalfPlane(c);
+            break;
+        case HyperbolicModel.KLEIN:
+            validateKlein(c);
+            this.poincare = kleinToPoincare(c);
+            this.klein = c;
+            this.halfPlane = kleinToHalfPlane(c);
+            break;
+        case HyperbolicModel.HALF_PLANE:
+            validateHalfPlane(c);
+            this.poincare = halfPlaneToPoincare(c);
+            this.klein = halfPlaneToKlein(c);
+            this.halfPlane = c;
+            break;
+        default:
+            throw new Error('Unknown hyperbolic model');
         }
+    }
+
+    translate(p2: HyperPoint, distance: number): HyperPoint {
+        if (this.isIdeal()) return HyperPoint.fromKlein(this.klein);
+        let hg = new HyperGeodesic(this, p2);
+        let ap = hg.ip.klein.distance(this.klein);
+        let pb = this.klein.distance(hg.iq.klein);
+        let ed = ap / pb * Math.exp(2 * distance);
+        let kd = (ed * pb - ap) / (ed + 1);
+        let kp = this.klein.plus(hg.iq.klein.minus(this.klein).normalize(kd));
+        return HyperPoint.fromKlein(kp);
     }
 
     resolve(model?: HyperbolicModel): Complex {
         switch (model) {
-            case HyperbolicModel.POINCARE:
-                return this.poincare;
-            case HyperbolicModel.KLEIN:
-                return this.klein;
-            case HyperbolicModel.HALF_PLANE:
-                return this.halfPlane;
-            default:
-                throw new Error('Unknown hyperbolic model');
+        case HyperbolicModel.POINCARE:
+            return this.poincare;
+        case HyperbolicModel.KLEIN:
+            return this.klein;
+        case HyperbolicModel.HALF_PLANE:
+            return this.halfPlane;
+        default:
+            throw new Error('Unknown hyperbolic model');
         }
     }
 

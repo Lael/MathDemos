@@ -2,21 +2,20 @@ import {Component} from "@angular/core";
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
 import * as THREE from 'three';
 import {
-    BufferGeometry,
-    CircleGeometry,
+    ArrowHelper,
+    Color,
     Line,
-    LineBasicMaterial,
     Mesh,
     MeshBasicMaterial,
     Object3D,
-    Raycaster,
+    PlaneGeometry,
     ShapeGeometry,
-    Vector2
+    Vector2,
+    Vector3
 } from 'three';
 import * as dat from 'dat.gui';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
-import {HyperbolicModel, HyperGeodesic, HyperPoint} from "../../../math/hyperbolic/hyperbolic";
-import {DragControls} from "three/examples/jsm/controls/DragControls";
+import {HyperbolicModel, HyperPoint} from "../../../math/hyperbolic/hyperbolic";
 import {Mobius} from "../../../math/mobius";
 import {Complex} from "../../../math/complex";
 import {lpCircle} from "../../../math/billiards/oval-table";
@@ -48,7 +47,7 @@ enum ToolMode {
 })
 export class HyperbolicGeometryComponent extends ThreeDemoComponent {
     orbitControls: OrbitControls;
-    dragControls: DragControls;
+    // dragControls: DragControls;
     draggables: Object3D[] = [];
     dragging = false;
     p1: HyperPoint | null = null;
@@ -62,6 +61,20 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
         toolLine: false,
         toolCircle: false,
         toolDelete: false,
+
+        dx: true,
+        dilat: false,
+        special: false,
+
+        xMin: -5,
+        xMax: 5,
+        xStep: 0.125,
+
+        yMin: 0.125,
+        yMax: 5,
+        yStep: 0.125,
+
+        vectorScale: 0.0625,
     };
 
     oldModel = this.model;
@@ -78,17 +91,23 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
     circles = new Map<Line, HyperCircle>();
     lines = new Map<Line, { p1: HyperPoint, p2: HyperPoint }>();
 
+    // VF stuff
+    halfPlane = new Mesh();
+    dx: ArrowHelper[] = [];
+    dilat: ArrowHelper[] = [];
+    special: ArrowHelper[] = [];
+
     constructor() {
         super();
         this.useOrthographic = true;
         this.updateOrthographicCamera();
         this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.orbitControls.enableRotate = false;
-        this.orbitControls.enablePan = false;
-        this.dragControls = new DragControls(this.draggables, this.camera, this.renderer.domElement);
-        this.dragControls.addEventListener('dragstart', this.dragStart.bind(this));
-        this.dragControls.addEventListener('drag', this.drag.bind(this));
-        this.dragControls.addEventListener('dragend', this.dragEnd.bind(this));
+        this.orbitControls.enablePan = true;
+        // this.dragControls = new DragControls(this.draggables, this.camera, this.renderer.domElement);
+        // this.dragControls.addEventListener('dragstart', this.dragStart.bind(this));
+        // this.dragControls.addEventListener('drag', this.drag.bind(this));
+        // this.dragControls.addEventListener('dragend', this.dragEnd.bind(this));
 
         this.renderer.setClearColor(CLEAR_COLOR);
 
@@ -104,6 +123,46 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
 
         this.gui = new dat.GUI();
         this.updateGUI();
+
+        // for (let i = 0; i <= 3; i++) {
+        //     const hp = HyperPoint.fromPoincare(Complex.polar(0.999, i * Math.PI / 2));
+        //     const vec = hp.poincare.toVector2();
+        //     const dot = new Mesh(new CircleGeometry(0.005, 32), new MeshBasicMaterial({color: DOT_COLOR}));
+        //     dot.position.set(vec.x, vec.y, 0);
+        //     this.points.set(dot, hp);
+        // }
+
+        this.halfPlane = new Mesh(
+            new PlaneGeometry(1000, 500), new MeshBasicMaterial({color: DISK_COLOR})
+        );
+        this.halfPlane.translateY(250)
+
+        this.computeVFs();
+    }
+
+    lengthToColor(l: number) {
+        const len = Math.atan(l * this.params.vectorScale * 4) / (Math.PI / 2);
+        return new Color(0x00aaaa).multiplyScalar(1 - len).add(new Color(0xaa0000).multiplyScalar(len));
+    }
+
+
+    computeVFs() {
+        this.dx = [];
+        this.dilat = [];
+        this.special = [];
+        for (let x = this.params.xMin; x <= this.params.xMax; x += this.params.xStep) {
+            for (let y = this.params.yMin; y <= this.params.yMax; y += this.params.yStep) {
+                const position = new Vector3(x - this.params.xStep / 2, y - this.params.yStep / 2, 0)
+                this.dx.push(new ArrowHelper(new Vector3(1, 0, 0), position, this.params.vectorScale, 0x000000, 0.02, 0.02));
+                const dilatLen = Math.sqrt(x * x + y * y);
+                const dilatColor = this.lengthToColor(dilatLen);
+                this.dilat.push(new ArrowHelper(new Vector3(x, y, 0).normalize(), position, Math.atan(dilatLen * this.params.vectorScale) / (Math.PI / 2), dilatColor, 0.02, 0.02));
+                const specialDir = new Vector3((x * x - y * y), 2 * x * y, 0);
+                const specialLen = specialDir.length();
+                const specialColor = this.lengthToColor(specialLen);
+                this.special.push(new ArrowHelper(specialDir.clone().normalize(), position, Math.atan(specialLen * this.params.vectorScale) / (Math.PI / 2), specialColor, 0.02, 0.02));
+            }
+        }
     }
 
     override ngOnDestroy() {
@@ -119,42 +178,46 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
         this.gui.destroy();
         this.gui = new dat.GUI();
 
-        const setModel = (model: HyperbolicModel) => {
-            const originHP = new HyperPoint(new Vector2(this.originHandle.position.x, this.originHandle.position.y),
-                this.oldModel);
-            this.params.modelPoincare = model === HyperbolicModel.POINCARE;
-            this.params.modelKlein = model === HyperbolicModel.KLEIN;
-            this.updateGUI();
-            const originVec = originHP.resolve(this.model);
-            this.originHandle.position.set(originVec.x, originVec.y, 0);
-            this.oldModel = this.model;
-        }
+        // const setModel = (model: HyperbolicModel) => {
+        //     const originHP = new HyperPoint(new Vector2(this.originHandle.position.x, this.originHandle.position.y),
+        //         this.oldModel);
+        //     this.params.modelPoincare = model === HyperbolicModel.POINCARE;
+        //     this.params.modelKlein = model === HyperbolicModel.KLEIN;
+        //     this.updateGUI();
+        //     const originVec = originHP.resolve(this.model);
+        //     this.originHandle.position.set(originVec.x, originVec.y, 0);
+        //     this.oldModel = this.model;
+        // }
+        //
+        // const modelFolder = this.gui.addFolder('Model');
+        // modelFolder.add(this.params, 'modelPoincare').name('Poincaré')
+        //     .listen().onChange(() => setModel(HyperbolicModel.POINCARE));
+        // modelFolder.add(this.params, 'modelKlein').name('Klein')
+        //     .onChange(() => setModel(HyperbolicModel.KLEIN));
+        // modelFolder.open();
+        //
+        // const setToolMode = (mode: ToolMode) => {
+        //     this.params.toolPoint = mode === ToolMode.Point;
+        //     this.params.toolLine = mode === ToolMode.Line;
+        //     this.params.toolCircle = mode === ToolMode.Circle;
+        //     this.params.toolDelete = mode === ToolMode.Delete;
+        //     this.updateGUI();
+        // }
+        //
+        // const toolFolder = this.gui.addFolder('Tool');
+        // toolFolder.add(this.params, 'toolPoint').name('Point')
+        //     .listen().onChange(() => setToolMode(ToolMode.Point));
+        // toolFolder.add(this.params, 'toolLine').name('Line')
+        //     .listen().onChange(() => setToolMode(ToolMode.Line));
+        // toolFolder.add(this.params, 'toolCircle').name('Circle')
+        //     .listen().onChange(() => setToolMode(ToolMode.Circle));
+        // toolFolder.add(this.params, 'toolDelete').name('Delete')
+        //     .listen().onChange(() => setToolMode(ToolMode.Delete));
+        // toolFolder.open();
 
-        const modelFolder = this.gui.addFolder('Model');
-        modelFolder.add(this.params, 'modelPoincare').name('Poincaré')
-            .listen().onChange(() => setModel(HyperbolicModel.POINCARE));
-        modelFolder.add(this.params, 'modelKlein').name('Klein')
-            .onChange(() => setModel(HyperbolicModel.KLEIN));
-        modelFolder.open();
-
-        const setToolMode = (mode: ToolMode) => {
-            this.params.toolPoint = mode === ToolMode.Point;
-            this.params.toolLine = mode === ToolMode.Line;
-            this.params.toolCircle = mode === ToolMode.Circle;
-            this.params.toolDelete = mode === ToolMode.Delete;
-            this.updateGUI();
-        }
-
-        const toolFolder = this.gui.addFolder('Tool');
-        toolFolder.add(this.params, 'toolPoint').name('Point')
-            .listen().onChange(() => setToolMode(ToolMode.Point));
-        toolFolder.add(this.params, 'toolLine').name('Line')
-            .listen().onChange(() => setToolMode(ToolMode.Line));
-        toolFolder.add(this.params, 'toolCircle').name('Circle')
-            .listen().onChange(() => setToolMode(ToolMode.Circle));
-        toolFolder.add(this.params, 'toolDelete').name('Delete')
-            .listen().onChange(() => setToolMode(ToolMode.Delete));
-        toolFolder.open();
+        this.gui.add(this.params, 'dx').name('∂x');
+        this.gui.add(this.params, 'dilat').name('Dilation');
+        this.gui.add(this.params, 'special').name('Special Conformal');
 
         this.gui.open();
     }
@@ -164,172 +227,177 @@ export class HyperbolicGeometryComponent extends ThreeDemoComponent {
         return HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
     }
 
-    override mousedown(e: MouseEvent) {
-        super.mousedown(e);
-        if (e.buttons !== 1 || !(e.target instanceof HTMLCanvasElement)) return;
-        if (this.dragging) {
-            return;
-        }
-
-        const aspectRatio = this.renderer.domElement.clientWidth / this.renderer.domElement.clientHeight;
-        const sx = (2 * e.clientX / this.renderer.domElement.clientWidth - 1) * aspectRatio / this.camera.zoom;
-        const sy = (1 - 2 * e.clientY / this.renderer.domElement.clientHeight) / this.camera.zoom;
-
-        if (sx * sx + sy * sy > 0.999) return;
-
-        let pt = new HyperPoint(new Vector2(sx, sy), this.model);
-        let hp = HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
-        const vec = hp.resolve(this.model);
-
-        const rc = new Raycaster();
-        rc.setFromCamera({
-            x: (e.clientX / window.innerWidth) * 2 - 1,
-            y: -(e.clientY / window.innerHeight) * 2 + 1
-        }, this.camera);
-        rc.params.Line!.threshold = 0.05;
-
-        const pointIntersections = rc.intersectObjects(Array.from(this.points.keys()));
-        const lineIntersections = rc.intersectObjects(Array.from(this.lines.keys()));
-        const circleIntersections = rc.intersectObjects(Array.from(this.circles.keys()));
-
-        switch (this.toolMode) {
-        case ToolMode.Point:
-            if (pointIntersections.length > 0) {
-                break;
-            }
-            const dot = new Mesh(new CircleGeometry(0.005, 32), new MeshBasicMaterial({color: DOT_COLOR}));
-            dot.position.set(vec.x, vec.y, 0);
-            this.points.set(dot, hp);
-            break;
-        case ToolMode.Circle:
-            if (pointIntersections.length > 0) {
-                hp = this.untranslatedHyperpoint(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y);
-            }
-            if (this.center === null) {
-                this.center = hp;
-            } else {
-                const radius = this.center.distance(hp);
-                const circle = this.makeCircle(this.center, radius);
-                this.circles.set(circle, {center: HyperPoint.fromPoincare(this.center.poincare), radius});
-                this.center = null;
-            }
-            break;
-        case ToolMode.Line:
-            if (pointIntersections.length > 0) {
-                hp = this.untranslatedHyperpoint(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y);
-            } else {
-                break;
-            }
-            if (this.p1 === null) {
-                this.p1 = hp;
-            } else {
-                const p = HyperPoint.fromPoincare(this.p1.poincare);
-                const g = new HyperGeodesic(p, hp);
-                const gi = new HyperGeodesic(g.ip, g.iq);
-                const arc = this.makeArc(gi);
-                this.lines.set(arc, {p1: g.ip, p2: g.iq});
-                this.p1 = null;
-            }
-            break;
-        case ToolMode.Delete:
-            for (let td of pointIntersections) {
-                this.points.delete(td.object as Mesh);
-            }
-            if (lineIntersections.length > 0) {
-                this.lines.delete(lineIntersections[0].object as Line);
-            }
-            if (circleIntersections.length > 0) {
-                this.circles.delete(circleIntersections[0].object as Line);
-            }
-        }
-    }
-
-    makeArc(g: HyperGeodesic): Line {
-        const points = g.interpolate(this.model, g.ip);
-        return new Line(
-            new BufferGeometry().setFromPoints(points.map(p => p.toVector2())),
-            new LineBasicMaterial({color: LINE_COLOR}),
-        );
-    }
-
-    getCirclePoints(center: HyperPoint, radius: number): HyperPoint[] {
-        const numPoints = 256;
-        const pr = HyperPoint.trueToPoincare(radius);
-        const points: HyperPoint[] = [];
-        const slide = Mobius.blaschke(center.poincare.scale(-1));
-        for (let i = 0; i <= numPoints; i++) {
-            const theta = Math.PI * 2 * i / numPoints;
-            points.push(
-                HyperPoint.fromPoincare(slide.apply(new Complex(pr * Math.cos(theta), pr * Math.sin(theta))))
-            );
-        }
-        return points;
-    }
-
-    makeCircle(center: HyperPoint, radius: number): Line {
-        const points = this.getCirclePoints(center, radius);
-        return new Line(
-            new BufferGeometry().setFromPoints(points.map(p => p.resolve(this.model).toVector2())),
-            new LineBasicMaterial({color: LINE_COLOR}),
-        );
-    }
-
-    override mousemove(e: MouseEvent) {
-        super.mousemove(e);
-        // if (!this.dragging) return;
-
-    }
-
-    override mouseup(e: MouseEvent) {
-        super.mouseup(e);
-        // this.dragging = false;
-    }
-
-    dragStart() {
-        this.dragging = true;
-    }
-
-    drag() {
-        if (this.originHandle.position.length() > 0.999) this.originHandle.position.copy(
-            this.originHandle.position.clone().normalize().multiplyScalar(0.999)
-        );
-        const hp = new HyperPoint(new Complex(-this.originHandle.position.x, -this.originHandle.position.y), this.model);
-        this.translation = Mobius.blaschke(hp.poincare);
-    }
-
-    dragEnd() {
-        this.dragging = false;
-    }
+    // override mousedown(e: MouseEvent) {
+    //     super.mousedown(e);
+    //     if (e.buttons !== 1 || !(e.target instanceof HTMLCanvasElement)) return;
+    //     if (this.dragging) {
+    //         return;
+    //     }
+    //
+    //     const aspectRatio = this.renderer.domElement.clientWidth / this.renderer.domElement.clientHeight;
+    //     const sx = (2 * e.clientX / this.renderer.domElement.clientWidth - 1) * aspectRatio / this.camera.zoom;
+    //     const sy = (1 - 2 * e.clientY / this.renderer.domElement.clientHeight) / this.camera.zoom;
+    //
+    //     if (sx * sx + sy * sy > 0.999) return;
+    //
+    //     let pt = new HyperPoint(new Vector2(sx, sy), this.model);
+    //     let hp = HyperPoint.fromPoincare(this.translation.inverse().apply(pt.poincare));
+    //     const vec = hp.resolve(this.model);
+    //
+    //     const rc = new Raycaster();
+    //     rc.setFromCamera({
+    //         x: (e.clientX / window.innerWidth) * 2 - 1,
+    //         y: -(e.clientY / window.innerHeight) * 2 + 1
+    //     }, this.camera);
+    //     rc.params.Line!.threshold = 0.05;
+    //
+    //     const pointIntersections = rc.intersectObjects(Array.from(this.points.keys()));
+    //     const lineIntersections = rc.intersectObjects(Array.from(this.lines.keys()));
+    //     const circleIntersections = rc.intersectObjects(Array.from(this.circles.keys()));
+    //
+    //     switch (this.toolMode) {
+    //     case ToolMode.Point:
+    //         if (pointIntersections.length > 0) {
+    //             break;
+    //         }
+    //         const dot = new Mesh(new CircleGeometry(0.005, 32), new MeshBasicMaterial({color: DOT_COLOR}));
+    //         dot.position.set(vec.x, vec.y, 0);
+    //         this.points.set(dot, hp);
+    //         break;
+    //     case ToolMode.Circle:
+    //         if (pointIntersections.length > 0) {
+    //             hp = this.untranslatedHyperpoint(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y);
+    //         }
+    //         if (this.center === null) {
+    //             this.center = hp;
+    //         } else {
+    //             const radius = this.center.distance(hp);
+    //             const circle = this.makeCircle(this.center, radius);
+    //             this.circles.set(circle, {center: HyperPoint.fromPoincare(this.center.poincare), radius});
+    //             this.center = null;
+    //         }
+    //         break;
+    //     case ToolMode.Line:
+    //         if (pointIntersections.length > 0) {
+    //             hp = this.untranslatedHyperpoint(pointIntersections[0].object.position.x, pointIntersections[0].object.position.y);
+    //         } else {
+    //             break;
+    //         }
+    //         if (this.p1 === null) {
+    //             this.p1 = hp;
+    //         } else {
+    //             const p = HyperPoint.fromPoincare(this.p1.poincare);
+    //             const g = new HyperGeodesic(p, hp);
+    //             const gi = new HyperGeodesic(g.ip, g.iq);
+    //             const arc = this.makeArc(gi);
+    //             this.lines.set(arc, {p1: g.ip, p2: g.iq});
+    //             this.p1 = null;
+    //         }
+    //         break;
+    //     case ToolMode.Delete:
+    //         for (let td of pointIntersections) {
+    //             this.points.delete(td.object as Mesh);
+    //         }
+    //         if (lineIntersections.length > 0) {
+    //             this.lines.delete(lineIntersections[0].object as Line);
+    //         }
+    //         if (circleIntersections.length > 0) {
+    //             this.circles.delete(circleIntersections[0].object as Line);
+    //         }
+    //     }
+    // }
+    //
+    // makeArc(g: HyperGeodesic): Line {
+    //     const points = g.interpolate(this.model, g.ip);
+    //     return new Line(
+    //         new BufferGeometry().setFromPoints(points.map(p => p.toVector2())),
+    //         new LineBasicMaterial({color: LINE_COLOR}),
+    //     );
+    // }
+    //
+    // getCirclePoints(center: HyperPoint, radius: number): HyperPoint[] {
+    //     const numPoints = 256;
+    //     const pr = HyperPoint.trueToPoincare(radius);
+    //     const points: HyperPoint[] = [];
+    //     const slide = Mobius.blaschke(center.poincare.scale(-1));
+    //     for (let i = 0; i <= numPoints; i++) {
+    //         const theta = Math.PI * 2 * i / numPoints;
+    //         points.push(
+    //             HyperPoint.fromPoincare(slide.apply(new Complex(pr * Math.cos(theta), pr * Math.sin(theta))))
+    //         );
+    //     }
+    //     return points;
+    // }
+    //
+    // makeCircle(center: HyperPoint, radius: number): Line {
+    //     const points = this.getCirclePoints(center, radius);
+    //     return new Line(
+    //         new BufferGeometry().setFromPoints(points.map(p => p.resolve(this.model).toVector2())),
+    //         new LineBasicMaterial({color: LINE_COLOR}),
+    //     );
+    // }
+    //
+    // override mousemove(e: MouseEvent) {
+    //     super.mousemove(e);
+    //     // if (!this.dragging) return;
+    //
+    // }
+    //
+    // override mouseup(e: MouseEvent) {
+    //     super.mouseup(e);
+    //     // this.dragging = false;
+    // }
+    //
+    // dragStart() {
+    //     this.dragging = true;
+    // }
+    //
+    // drag() {
+    //     if (this.originHandle.position.length() > 0.999) this.originHandle.position.copy(
+    //         this.originHandle.position.clone().normalize().multiplyScalar(0.999)
+    //     );
+    //     const hp = new HyperPoint(new Complex(-this.originHandle.position.x, -this.originHandle.position.y), this.model);
+    //     this.translation = Mobius.blaschke(hp.poincare);
+    // }
+    //
+    // dragEnd() {
+    //     this.dragging = false;
+    // }
 
 
     updateDraw() {
         this.scene.clear();
-        this.scene.add(this.disk);
-        this.scene.add(this.originHandle);
+        this.scene.add(this.halfPlane);
+        // this.scene.add(this.disk);
+        // this.scene.add(this.originHandle);
 
-        for (let [dot, hp] of this.points.entries()) {
-            const p = HyperPoint.fromPoincare(this.translation.apply(hp.poincare)).resolve(this.model);
-            dot.position.set(p.x, p.y, 0);
-            this.scene.add(dot);
-        }
+        if (this.params.dx) this.scene.add(...this.dx);
+        if (this.params.dilat) this.scene.add(...this.dilat);
+        if (this.params.special) this.scene.add(...this.special);
 
-        for (let [arc, {p1, p2}] of this.lines.entries()) {
-            const g = new HyperGeodesic(
-                HyperPoint.fromPoincare(this.translation.apply(p1.poincare)),
-                HyperPoint.fromPoincare(this.translation.apply(p2.poincare)));
-            const points = g.interpolate(this.model, g.ip);
-            arc.geometry.setFromPoints(points.map(p => p.toVector2()));
-            this.scene.add(arc);
-        }
-
-        for (let [circle, {center, radius}] of this.circles.entries()) {
-            const points = this.getCirclePoints(center, radius).map(p => {
-                const tp = HyperPoint.fromPoincare(this.translation.apply(p.poincare));
-                return tp.resolve(this.model).toVector2()
-            });
-            circle.geometry.setFromPoints(points);
-            this.scene.add(circle);
-        }
+        // for (let [dot, hp] of this.points.entries()) {
+        //     const p = HyperPoint.fromPoincare(this.translation.apply(hp.poincare)).resolve(this.model);
+        //     dot.position.set(p.x, p.y, 0);
+        //     this.scene.add(dot);
+        // }
+        //
+        // for (let [arc, {p1, p2}] of this.lines.entries()) {
+        //     const g = new HyperGeodesic(
+        //         HyperPoint.fromPoincare(this.translation.apply(p1.poincare)),
+        //         HyperPoint.fromPoincare(this.translation.apply(p2.poincare)));
+        //     const points = g.interpolate(this.model, g.ip);
+        //     arc.geometry.setFromPoints(points.map(p => p.toVector2()));
+        //     this.scene.add(arc);
+        // }
+        //
+        // for (let [circle, {center, radius}] of this.circles.entries()) {
+        //     const points = this.getCirclePoints(center, radius).map(p => {
+        //         const tp = HyperPoint.fromPoincare(this.translation.apply(p.poincare));
+        //         return tp.resolve(this.model).toVector2()
+        //     });
+        //     circle.geometry.setFromPoints(points);
+        //     this.scene.add(circle);
+        // }
     }
 
     get model(): HyperbolicModel {

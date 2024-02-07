@@ -1,7 +1,20 @@
 import {Component} from "@angular/core";
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
 import * as THREE from 'three';
-import {BufferGeometry, Line, LineBasicMaterial, Object3D, Points, PointsMaterial, Vector2} from 'three';
+import {
+    BoxGeometry,
+    BufferGeometry,
+    Color,
+    InstancedMesh,
+    Line,
+    LineBasicMaterial,
+    Matrix4,
+    MeshBasicMaterial,
+    Object3D,
+    Points,
+    PointsMaterial,
+    Vector2
+} from 'three';
 import * as dat from 'dat.gui';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {DragControls} from "three/examples/jsm/controls/DragControls";
@@ -9,8 +22,8 @@ import {lpCircle} from "../../../math/billiards/oval-table";
 
 // Colors
 const CLEAR_COLOR = 0x0a2933;
-const FILL_COLOR = 0xf9f4e9;
-const BORDER_COLOR = 0x990044;
+const FILL_COLOR = 0xffffff;
+const BORDER_COLOR = 0xffffff;
 const CHORDS_COLOR = 0x000000;
 const OUTER_ORBIT_COLOR = 0x3adecb;
 const SINGULARITY_COLOR = 0xff7f5e;
@@ -19,6 +32,11 @@ const END_POINT_COLOR = 0x6f51e7;
 const SCAFFOLD_COLOR = 0xffbbff;
 const HANDLE_COLOR = 0x990044;
 const CIRCLE_CENTER_COLOR = 0xf5dd90;
+
+// const CG1 = 0x0a2933;
+const CG1 = 0x2afae2;
+const CG2 = 0x2e2dc9;
+const CG3 = 0xe76f51;
 
 @Component({
     selector: 'billiards',
@@ -34,18 +52,19 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
     // Parameters
 
     tableParams = {
-        p: 2,
+        p: 3,
+        xScale: 1.618,
     };
 
     drawParams = {
         orbit: true,
-        orbitPaths: true,
+        orbitPaths: false,
         scaffold: false,
     }
 
     gameParams = {
-        scaleFactor: 1,
-        iterations: 1,
+        scaleFactor: 0.95,
+        iterations: 12,
     }
 
     // When to update stuff
@@ -57,16 +76,19 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
 
     // Stuff on the screen
     polygon = new THREE.Mesh();
+    border = new THREE.Line();
     orbit = new THREE.Object3D();
     startPointDisk = new THREE.Mesh();
     nextPoint = new THREE.Mesh();
     scaffold: THREE.Object3D[] = [];
     currentOrbit: Vector2[] = [];
-    savedOrbits: Vector2[] = [];
-    savedOrbitsObj = new Points();
+    savedOrbit: Vector2[] = [];
+    scaledOrbits: Object3D[] = [];
+
+    grid: InstancedMesh | null = null;
 
     // Billiards
-    table = lpCircle(this.tableParams.p);
+    table = lpCircle(this.tableParams.p, this.tableParams.xScale);
     start: Vector2 = new Vector2(-4, 1);
 
     constructor() {
@@ -113,14 +135,68 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
         this.orbitDirty = true;
     }
 
+    private saveOrbit() {
+        this.savedOrbit.push(...this.currentOrbit)
+        this.savedOrbit.sort((a, b) => a.angle() - b.angle());
+        this.savedOrbit.push(this.savedOrbit[0]);
+        this.scaledOrbits.push(new Points(
+            new BufferGeometry().setFromPoints(this.savedOrbit),
+            new PointsMaterial({color: OUTER_ORBIT_COLOR})
+        ));
+    }
+
+    private iterate() {
+        try {
+            const scaledOrbit = this.savedOrbit.map(p => this.mapPoint(p, this.gameParams.scaleFactor));
+            this.savedOrbit = scaledOrbit;
+            // const n = 30.0;
+            // const t = Math.pow(Math.min(this.scaledOrbits.length, n) / n, 1.5);
+            const t = 1 - Math.exp(-this.scaledOrbits.length / 8);
+            // const t1 = Math.exp(-this.scaledOrbits.length / 10);
+            // const t2 = Math.exp(-Math.pow(this.scaledOrbits.length - 20, 2) / 100) * (1 - t1);
+            // const t3 = 1 - (t1 + t2);
+            // const color =
+            //     new Color(CG1).multiplyScalar(t1).add(
+            //         new Color(CG2).multiplyScalar(t2).add(
+            //             new Color(CG3).multiplyScalar(t3)));
+            const color = new Color(CG3).multiplyScalar(t).add(new Color(CG1).multiplyScalar(1 - t));
+            this.scaledOrbits.push(new Points(
+                new BufferGeometry().setFromPoints(scaledOrbit),
+                new PointsMaterial({color})
+            ));
+        } catch (e) {
+            console.log(e);
+        }
+        this.markDrawDirty();
+    }
+
+    private clear() {
+        this.savedOrbit = [];
+        this.scaledOrbits = [];
+        this.markDrawDirty();
+    }
+
     override keydown(e: KeyboardEvent) {
         super.keydown(e);
-        if (e.code === 'KeyC') {
-            this.savedOrbits.push(...this.currentOrbit);
-            this.savedOrbitsObj.geometry.setFromPoints(this.savedOrbits);
-        }
-        if (e.code === 'KeyS') {
-
+        switch (e.code) {
+        case 'KeyS':
+            this.saveOrbit();
+            break;
+        case 'KeyI':
+            this.iterate();
+            break;
+        case 'KeyC':
+            this.clear();
+            break;
+        case 'KeyX':
+            const oldPosition = this.camera.position;
+            this.camera.position.set(0, 0, oldPosition.z);
+            this.orbitControls.target.set(0, 0, 0);
+            this.orbitControls.update();
+            break;
+        case 'KeyP':
+            this.printScreen();
+            break;
         }
     }
 
@@ -137,10 +213,49 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
         if (this.drawDirty) this.updateDraw();
     }
 
+    updateGrid() {
+        const threshold = 2.5;
+        const iterations = 20;
+        const values = new Map<Vector2, number>();
+        const bound = 2;
+        const step = Math.pow(2, -6);
+        console.log('starting', new Date());
+        for (let i = -bound; i <= bound; i += step) {
+            for (let j = -Math.sqrt(bound * bound - i * i); j <= Math.sqrt(bound * bound - i * i); j += step) {
+                let v = new Vector2(i, j);
+                let value = 1;
+                for (let k = 0; k < iterations; k++) {
+                    if (v.length() > threshold) {
+                        value = k / (1.5 * iterations);
+                        break;
+                    }
+                    try {
+                        v = this.inverseMapPoint(v, this.gameParams.scaleFactor);
+                    } catch (e) {
+                        value = 0;
+                        break;
+                    }
+                }
+                values.set(new Vector2(i, j), value);
+            }
+        }
+        console.log('finishing', new Date());
+        const geometry = new BoxGeometry(step, step, step);
+        const material = new MeshBasicMaterial({color: new Color(0xffffff)});
+        const im = new InstancedMesh(geometry, material, values.size);
+        let i = 0;
+        for (let [pos, val] of values.entries()) {
+            im.setMatrixAt(i, new Matrix4().makeTranslation(pos.x, pos.y, -step * 2));
+            im.setColorAt(i, new Color(CLEAR_COLOR).multiplyScalar(1 - val).add(new Color(0xff0000).multiplyScalar(val)));
+            i++;
+        }
+        im.instanceMatrix.needsUpdate = true;
+        this.grid = im;
+    }
+
     updateGUI() {
         this.gui.destroy();
         this.gui = new dat.GUI();
-
 
         const drawFolder = this.gui.addFolder('Drawing');
         drawFolder.add(this.drawParams, 'orbitPaths').name('Orbit Paths').onFinishChange(
@@ -152,13 +267,13 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
             .min(1).max(100).name('Superellipse')
             .onFinishChange(this.markTableDirty.bind(this));
         gameFolder.add(this.gameParams, 'scaleFactor')
-            .min(0.9).max(1).step(0.0001).name('Decay')
-            .onChange(() => {
+            .min(0.1).max(1).step(0.0001).name('Decay')
+            .onFinishChange(() => {
                 this.orbitDirty = true;
             });
         gameFolder.add(this.gameParams, 'iterations')
             .min(1).max(20).step(1).name('Iterations (log)')
-            .onChange(() => {
+            .onFinishChange(() => {
                 this.orbitDirty = true;
             });
         gameFolder.open();
@@ -195,10 +310,13 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
 
     updateTable() {
         this.tableDirty = false;
+        this.savedOrbit = [];
+        this.scaledOrbits = [];
 
         this.scene.remove(this.polygon);
+        this.scene.remove(this.border);
 
-        this.table = lpCircle(this.tableParams.p);
+        this.table = lpCircle(this.tableParams.p, this.tableParams.xScale);
 
         let vertices: Vector2[] = this.table.points(256);
 
@@ -206,6 +324,10 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
         const geometry = new THREE.ShapeGeometry(shape);
         const material = new THREE.MeshBasicMaterial({color: FILL_COLOR});
         this.polygon = new THREE.Mesh(geometry, material);
+        this.border = new THREE.Line(
+            new BufferGeometry().setFromPoints(vertices.concat([vertices[0]])),
+            new LineBasicMaterial({color: BORDER_COLOR})
+        );
 
         this.orbitDirty = true;
         this.drawDirty = true;
@@ -214,6 +336,7 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
     updateOrbit() {
         this.orbitDirty = false;
         this.drawDirty = true;
+        // this.updateGrid();
         this.scene.remove(this.orbit);
         this.startPointDisk.position.set(this.start.x, this.start.y, 0);
 
@@ -221,11 +344,6 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
             this.scene.remove(s);
         }
         this.scaffold = [];
-
-        let startPointPosition: Vector2;
-        let nextPointPosition: Vector2;
-        let geometry;
-        let material;
 
         const iterations = this.dragging ? Math.min(this.iterations, 2) : this.iterations;
 
@@ -235,8 +353,7 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
         for (let i = 0; i < iterations; i++) {
             orbitPoints.push(current);
             try {
-                const tp = this.table.rightTangentPoint(current);
-                current = tp.add(tp.clone().sub(current).multiplyScalar(this.gameParams.scaleFactor));
+                current = this.mapPoint(current);
             } catch (e) {
                 console.log(e);
                 break;
@@ -254,6 +371,17 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
         } else {
             this.orbit = new Points(new BufferGeometry().setFromPoints(orbitPoints), new PointsMaterial({color: OUTER_ORBIT_COLOR}));
         }
+        this.currentOrbit = orbitPoints;
+    }
+
+    inverseMapPoint(p: Vector2, scaleFactor: number = 1): Vector2 {
+        const tp = this.table.leftTangentPoint(p);
+        return tp.add(tp.clone().sub(p).multiplyScalar(1 / scaleFactor));
+    }
+
+    mapPoint(p: Vector2, scaleFactor: number = 1): Vector2 {
+        const tp = this.table.rightTangentPoint(p);
+        return tp.add(tp.clone().sub(p).multiplyScalar(scaleFactor));
     }
 
     updateDraw() {
@@ -261,6 +389,7 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
         this.scene.clear();
 
         this.scene.add(this.polygon);
+        // this.scene.add(this.border);
 
         if (this.drawParams.scaffold) {
             for (let s of this.scaffold) this.scene.add(s);
@@ -268,9 +397,14 @@ export class ScalingBilliardsComponent extends ThreeDemoComponent {
 
         if (this.drawParams.orbit) {
             this.scene.add(this.orbit);
-            this.scene.add(this.startPointDisk);
-            this.scene.add(this.nextPoint);
+            // this.scene.add(this.startPointDisk);
+            // this.scene.add(this.nextPoint);
+            for (let ps of this.scaledOrbits) {
+                this.scene.add(ps);
+            }
         }
+
+        if (this.grid) this.scene.add(this.grid);
     }
 
     get iterations(): number {

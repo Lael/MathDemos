@@ -14,6 +14,7 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
     orthographicDiagonal: number = 1;
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
+    showHelp = false;
 
     @ViewChild('render_container', {static: true})
     hostElement?: ElementRef;
@@ -91,11 +92,30 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
     }
 
     printScreen() {
-        const dataURL = this.renderer.domElement.toDataURL("image/png");
-        window.open(dataURL);
+        const win = window.open('', '');
+        if (!win) {
+            console.error('Failed to open a new window for the screenshot');
+            return;
+        }
+        win.document.title = "Screenshot";
+        const img = new Image();
+        // store settings
+        const oldPixelRatio = this.renderer.getPixelRatio();
+        const w = this.hostElement?.nativeElement.offsetWidth || 0;
+        const h = this.hostElement?.nativeElement.offsetHeight || 0;
+        this.renderer.setSize(2 * w, 2 * h);
+        this.renderer.render(this.scene, this.camera);
+        img.src = this.renderer.domElement.toDataURL();
+        win.document.body.appendChild(img);
+        this.renderer.setPixelRatio(oldPixelRatio);
+        this.renderer.setSize(w, h);
     }
 
     abstract frame(dt: number): void;
+
+    help(): String {
+        return "Placeholder!";
+    }
 
     ngAfterViewInit(): void {
         if (!this.hostElement) {

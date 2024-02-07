@@ -5,7 +5,7 @@ export type Parametrization = (t: number) => Vector2;
 export type ContainmentTest = (v: Vector2) => boolean;
 export type TangentSolver = (v: Vector2) => Vector2;
 
-export function lpCircle(p: number): OvalTable {
+export function lpCircle(p: number, xScale: number = 1): OvalTable {
     // x^p + y^p = 1
     // x(t) = cos^(2/p)(t), x'(t) = -(2/p)cos^(2/p - 1)(t)*sin(t)
     // y(t) = sin^(2/p)(t), y'(t) = (2/p)sin^(2/p - 1)(t)*cos(t)
@@ -13,7 +13,7 @@ export function lpCircle(p: number): OvalTable {
         const c = Math.cos(2 * Math.PI * t);
         const s = Math.sin(2 * Math.PI * t);
         const r = Math.pow(Math.pow(Math.abs(c), p) + Math.pow(Math.abs(s), p), -1 / p);
-        return new Vector2(r * c, r * s);
+        return new Vector2(r * c * xScale, r * s);
     };
     const derivative = (t: number) => {
         const c = Math.cos(2 * Math.PI * t);
@@ -25,7 +25,7 @@ export function lpCircle(p: number): OvalTable {
         ) * p;
 
         return new Vector2(
-            rp * c - r * s,
+            (rp * c - r * s) * xScale,
             rp * s + r * c,
         ).normalize();
 
@@ -72,6 +72,37 @@ export class OvalTable {
             r.clone().add(this.tangent(t).multiplyScalar(sign)),
             p,
         );
+    }
+
+    // right as viewed by the point
+    leftTangentPoint(point: Vector2): Vector2 {
+        if (this.contains(point)) {
+            throw Error('point inside table');
+        }
+        const t1 = point.angle() / (2 * Math.PI) + 0.5;
+        const t2 = point.angle() / (2 * Math.PI) + 1;
+        const a1 = this.tangentialAngle(t1, point, 1);
+        const a2 = this.tangentialAngle(t2, point, 1);
+        if (a1 === 0) return this.parametrization(t1);
+        if (a2 === 0) return this.parametrization(t2);
+        let interval: Vector2;
+        let ma;
+        if (a1 > 0 && a2 < 0) {
+            interval = new Vector2(t1, t2);
+        } else {
+            throw Error('bad parametrization');
+        }
+        let m = 0.5 * (interval.x + interval.y);
+        let safety = 0;
+        while (Math.abs(ma = this.tangentialAngle(m, point, 1)) > 0.000_000_1 && safety < 100) {
+            safety++;
+            if (ma === 0) break;
+            else if (ma > 0) interval.x = m;
+            else if (ma < 0) interval.y = m;
+            m = 0.5 * (interval.x + interval.y);
+        }
+
+        return this.parametrization(m);
     }
 
     // right as viewed by the point

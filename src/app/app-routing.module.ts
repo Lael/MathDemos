@@ -12,6 +12,9 @@ import {TileBilliardsComponent} from "./demos/tile-billiards/tile-billiards.comp
 import {CorridorsComponent} from "./demos/corridors/corridors.component";
 import {ScalingBilliardsComponent} from "./demos/scaling-billiards/scaling-billiards.component";
 import {HyperbolicGeometryComponent} from "./demos/hyperbolic-geometry/hyperbolic-geometry.component";
+import {TicktockComponent} from "./demos/ticktock/ticktock.component";
+import {TriangleMapComponent} from "./demos/triangle-map/triangle-map.component";
+import {SymmetricComponent} from "./demos/symmetry/symmetric.component";
 
 const routes: Routes = [
     {path: '', component: HomePageComponent},
@@ -30,6 +33,9 @@ const routes: Routes = [
     {path: 'corridors', component: CorridorsComponent},
     {path: 'scaling', component: ScalingBilliardsComponent},
     {path: 'hyperbolic', component: HyperbolicGeometryComponent},
+    {path: 'ticktock', component: TicktockComponent},
+    {path: 'triangle-map', component: TriangleMapComponent},
+    {path: 'symmetric', component: SymmetricComponent},
 ];
 
 @NgModule({
