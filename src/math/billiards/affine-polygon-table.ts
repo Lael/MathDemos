@@ -1,18 +1,14 @@
-import {Vector2} from "three";
-import {Flavor} from "./new-billiard";
+import {Shape, Vector2} from "three";
+import {Generator} from "./new-billiard";
 import {LineSegment} from "../geometry/line-segment";
 import {Complex} from "../complex";
-import {fixTime} from "./tables";
+import {AffineInnerState, AffineOuterBilliardTable, fixTime} from "./tables";
 import {Line} from "../geometry/line";
 import {closeEnough, normalizeAngle} from "../math-helpers";
+import {AffineCircle} from "../geometry/affine-circle";
 
 const SYMPLECTIC_PREIMAGE_PIECES = 2000;
 const SYMPLECTIC_PREIMAGE_LENGTH = 10;
-
-export type AffineInnerState = {
-    time: number;
-    angle: number;
-}
 
 export type AffineChord = {
     startTime: number;
@@ -54,72 +50,14 @@ export class AffineRay {
     }
 }
 
-export class AffineCircle {
-    private readonly radiusSquared: number;
+export class AffinePolygonTable extends AffineOuterBilliardTable {
 
-    constructor(readonly center: Vector2, readonly radius: number) {
-        this.radiusSquared = radius * radius;
-    }
-
-    pointOnBoundary(point: Vector2) {
-        return closeEnough(point.distanceToSquared(this.center), this.radiusSquared);
-    }
-
-    containsPoint(point: Vector2) {
-        return point.distanceToSquared(this.center) < this.radiusSquared ||
-            this.pointOnBoundary(point);
-    }
-
-    tangentPoint(point: Vector2, clockwise: boolean = false): Vector2 {
-        if (this.pointOnBoundary(point)) return point;
-        if (this.containsPoint(point)) throw Error('Cannot make tangent to point inside circle');
-        const mid = point.clone().add(this.center).multiplyScalar(0.5);
-        const l = mid.distanceTo(this.center);
-        const d2 = this.radiusSquared / (2 * l);
-        const diff = mid.clone().sub(this.center).normalize();
-        const lc = this.center.clone().add(diff.clone().multiplyScalar(d2));
-        const h = Math.sqrt(this.radiusSquared - d2 * d2);
-        if (clockwise) return lc.clone().add(new Vector2(-diff.y * h, diff.x * h));
-        else return lc.clone().add(new Vector2(diff.y * h, -diff.x * h));
-    }
-
-    tangentLine(point: Vector2, clockwise: boolean = false): Line {
-        if (this.pointOnBoundary(point)) {
-            return Line.throughTwoPoints(this.center, point).perpAtPoint(point);
-        }
-        const tp = this.tangentPoint(point, clockwise);
-        return Line.throughTwoPoints(tp, point);
-    }
-
-    outerTangent(other: AffineCircle, clockwise: boolean = false): Line {
-        let a: Vector2;
-        let b: Vector2;
-        let sr: number;
-        if (this.radius === other.radius) {
-            // straight line offset by radius
-            a = this.center;
-            b = other.center;
-            sr = this.radius;
-        } else if (this.radius > other.radius) {
-            a = new AffineCircle(this.center, this.radius - other.radius).tangentPoint(other.center, clockwise);
-            b = other.center;
-            sr = other.radius;
-        } else {
-            a = this.center;
-            b = new AffineCircle(other.center, other.radius - this.radius).tangentPoint(this.center, !clockwise);
-            sr = this.radius;
-        }
-        const v = b.clone().sub(a).normalize().multiplyScalar(sr).rotateAround(new Vector2(), Math.PI / 2 * (clockwise ? 1 : -1));
-        return Line.throughTwoPoints(a.add(v), b.add(v));
-    }
-}
-
-export class NewAffinePolygonTable {
     readonly n: number;
     readonly sides: LineSegment[] = [];
     readonly slicingRays: AffineRay[] = [];
 
     constructor(readonly vertices: Vector2[]) {
+        super();
         this.n = vertices.length;
         for (let i = 0; i < this.n; i++) {
             const v1 = vertices[i];
@@ -156,11 +94,11 @@ export class NewAffinePolygonTable {
     private angle(startTime: number, endTime: number): number {
         const p1 = Complex.fromVector2(this.point(startTime));
         const p2 = Complex.fromVector2(this.point(endTime));
-        const heading = this.heading(startTime);
+        const heading = this.tangentHeading(startTime);
         return normalizeAngle(p1.heading(p2) - heading, 0) % Math.PI;
     }
 
-    private timeOf(point: Vector2): number {
+    time(point: Vector2): number {
         const z = Complex.fromVector2(point);
         for (let [i, segment] of this.sides.entries()) {
             if (!segment.containsPoint(z)) continue;
@@ -171,7 +109,7 @@ export class NewAffinePolygonTable {
         throw Error('Point not on polygon');
     }
 
-    heading(time: number): number {
+    tangentHeading(time: number): number {
         const t = fixTime(time);
         const nt = this.n * t
         const i = Math.floor(nt);
@@ -182,12 +120,59 @@ export class NewAffinePolygonTable {
         return Complex.fromVector2(v1).heading(Complex.fromVector2(v2));
     }
 
+    containsPoint(point: Vector2): boolean {
+        const c = Complex.fromVector2(point);
+        for (let s of this.sides) {
+            if (s.end.minus(s.start).cross(c.minus(s.start)) < 0) return false;
+        }
+        return true;
+    }
+
+    pointOnBoundary(point: Vector2): boolean {
+        const c = Complex.fromVector2(point);
+        for (let s of this.sides) {
+            if (s.containsPoint(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    leftTangentLine(circle: AffineCircle): Line {
+        return this.circleTangentHelper(circle, true);
+    }
+
+    rightTangentLine(circle: AffineCircle): Line {
+        return this.circleTangentHelper(circle, false);
+    }
+
+    private circleTangentHelper(circle: AffineCircle, left: boolean = false): Line {
+        for (let i = 0; i < this.n; i++) {
+            const v1 = this.vertices[i % this.n];
+            const v2 = this.vertices[(i + 1) % this.n];
+            if (circle.pointOnBoundary(v2)) continue;
+            const v3 = this.vertices[(i + 2) % this.n];
+            const s2 = v1.clone().sub(v2);
+            const s3 = v3.clone().sub(v2);
+            let cp, d;
+            if (left) {
+                cp = circle.rightTangentPoint(Complex.fromVector2(v2));
+                d = cp.toVector2().sub(v2);
+            } else {
+                cp = circle.leftTangentPoint(Complex.fromVector2(v2));
+                d = v2.clone().sub(cp.toVector2());
+            }
+            if (d.cross(s2) >= 0 && d.cross(s3) >= 0) return Line.throughTwoPoints(cp, v2.clone());
+        }
+        throw Error(`no ${left ? 'left' : 'right'} tangent line`);
+    }
+
     private intersect(state: AffineInnerState): AffineInnerState {
         const t = fixTime(state.time);
         if (closeEnough(state.angle % Math.PI, 0)) return state;
         if (state.angle < 0 || state.angle > Math.PI) throw Error('Invalid angle');
         const z = Complex.fromVector2(this.point(t));
-        const theta = this.heading(t);
+        const theta = this.tangentHeading(t);
         const line = Line.throughTwoPoints(z, z.plus(Complex.polar(1, state.angle + theta)));
         for (let segment of this.sides) {
             let intersection;
@@ -198,8 +183,8 @@ export class NewAffinePolygonTable {
             }
             if (intersection.equals(z)) continue;
             if (segment.containsPoint(intersection)) {
-                const time = this.timeOf(intersection.toVector2());
-                const angle = normalizeAngle(intersection.heading(z) - this.heading(time), 0);
+                const time = this.time(intersection.toVector2());
+                const angle = normalizeAngle(intersection.heading(z) - this.tangentHeading(time), 0);
                 return {time, angle};
             }
         }
@@ -207,7 +192,7 @@ export class NewAffinePolygonTable {
     }
 
     iterateInner(state: AffineInnerState,
-                 flavor: Flavor,
+                 flavor: Generator,
                  iterations: number = 1): AffineChord[] {
         let chord;
         try {
@@ -219,14 +204,14 @@ export class NewAffinePolygonTable {
         for (let i = 0; i < iterations; i++) {
             let newChord: AffineChord;
             switch (flavor) {
-            case Flavor.REGULAR:
+            case Generator.LENGTH:
                 try {
                     newChord = this.innerRegular(chord);
                 } catch (e) {
                     return chords;
                 }
                 break;
-            case Flavor.SYMPLECTIC:
+            case Generator.AREA:
                 try {
                     newChord = this.innerSymplectic(chord);
                 } catch (e) {
@@ -234,7 +219,7 @@ export class NewAffinePolygonTable {
                 }
                 break;
             default:
-                throw Error('Unknown flavor');
+                throw Error('Unknown generator');
             }
             if (closeEnough(newChord.startTime, state.time) && closeEnough(newChord.startAngle, state.angle)) break;
             chords.push(newChord);
@@ -261,7 +246,7 @@ export class NewAffinePolygonTable {
     private innerSymplectic(chord: AffineChord): AffineChord {
         const symplecticIntersection = this.intersect({
             time: chord.startTime,
-            angle: normalizeAngle(this.heading(chord.endTime) - this.heading(chord.startTime), 0) % Math.PI,
+            angle: normalizeAngle(this.tangentHeading(chord.endTime) - this.tangentHeading(chord.startTime), 0) % Math.PI,
         });
         return {
             startTime: chord.endTime,
@@ -286,53 +271,12 @@ export class NewAffinePolygonTable {
         };
     }
 
-    iterateOuter(startingPoint: Vector2,
-                 flavor: Flavor,
-                 iterations: number = 1): Vector2[][] {
-        const points = [startingPoint];
-        const centers = [];
-        let point = startingPoint;
-        for (let i = 0; i < iterations; i++) {
-            let newPoint: Vector2;
-            switch (flavor) {
-            case Flavor.REGULAR:
-                try {
-                    newPoint = this.outerRegular(point);
-                    points.push(newPoint);
-                } catch (e) {
-                    return [points];
-                }
-                break;
-            case Flavor.SYMPLECTIC:
-                try {
-                    const circle = this.symplecticOuterCircle(point, false)
-                    newPoint = this.outerSymplectic(point);
-                    points.push(newPoint);
-                    centers.push(circle.center);
-                } catch (e) {
-                    return [points, centers];
-                }
-                break;
-            default:
-                throw Error('Unknown billiard flavor');
-            }
-            point = newPoint;
-            if (closeEnough(newPoint.distanceTo(startingPoint), 0)) break;
-        }
-        return [points, centers];
-    }
-
-    private outerRegular(point: Vector2): Vector2 {
-        const pivot = this.forwardPoint(point);
-        return this.reflectRegular(pivot, point);
-    }
-
     private reflectRegular(pivot: Vector2, point: Vector2) {
         const diff = pivot.clone().sub(point);
         return point.clone().add(diff.multiplyScalar(2));
     }
 
-    forwardPoint(point: Vector2): Vector2 {
+    rightTangentPoint(point: Vector2): Vector2 {
         for (let i = 0; i < this.n; i++) {
             const v1 = this.vertices[i];
             const v2 = this.vertices[(i + 1) % this.n];
@@ -346,7 +290,7 @@ export class NewAffinePolygonTable {
         throw Error('Point is not in domain of forward map');
     }
 
-    reversePoint(point: Vector2): Vector2 {
+    leftTangentPoint(point: Vector2): Vector2 {
         for (let i = 0; i < this.n; i++) {
             const v1 = this.vertices[i];
             const v2 = this.vertices[(i + 1) % this.n];
@@ -360,64 +304,14 @@ export class NewAffinePolygonTable {
         throw Error('Point is not in domain of backward map');
     }
 
-    private outerSymplectic(point: Vector2, reverse: boolean = false): Vector2 {
-        const circle = this.symplecticOuterCircle(point, reverse);
-        return this.outerSymplecticHelper(point, circle, reverse);
-    }
-
-    private outerSymplecticHelper(point: Vector2, circle: AffineCircle, reverse: boolean): Vector2 {
-        const forward = reverse ? this.reversePoint(point) : this.forwardPoint(point);
-        const fl = Line.throughTwoPoints(point, forward);
-        for (let i = 0; i < this.n; i++) {
-            const v1 = this.vertices[i];
-            const v2 = this.vertices[(i + 1) % this.n];
-            const v3 = this.vertices[(i + 2) % this.n];
-            if (circle.pointOnBoundary(v2)) continue;
-            if (reverse) {
-                const tp = circle.tangentPoint(v2, true);
-                const dir = v2.clone().sub(tp);
-                const c1 = v1.clone().sub(tp);
-                const c3 = v3.clone().sub(tp);
-                if (dir.cross(c1) < 0 && dir.cross(c3) < 0) {
-                    const tl = Line.throughTwoPoints(tp, v2);
-                    return tl.intersectLine(fl).toVector2();
-                }
-            } else {
-                const tp = circle.tangentPoint(v2, false);
-                const dir = v2.clone().sub(tp);
-                const c1 = v1.clone().sub(tp);
-                const c3 = v3.clone().sub(tp);
-                if (dir.cross(c1) > 0 && dir.cross(c3) > 0) {
-                    const tl = Line.throughTwoPoints(tp, v2);
-                    return tl.intersectLine(fl).toVector2();
-                }
-            }
-        }
-        throw Error('Could not find next point');
-    }
-
-    symplecticOuterCircle(point: Vector2, reverse: boolean): AffineCircle {
-        const t1 = reverse ? this.reversePoint(point) : this.forwardPoint(point);
-        const t2 = reverse ? this.forwardPoint(point) : this.reversePoint(point);
-        const d = t1.distanceTo(point);
-        const m = point.clone().add(point.clone().sub(t2).normalize().multiplyScalar(d));
-        const lf = Line.throughTwoPoints(point, t1);
-        const lb = Line.throughTwoPoints(point, t2);
-        const pf = lf.perpAtPoint(t1);
-        const pb = lb.perpAtPoint(m);
-        const cc = pf.intersectLine(pb).toVector2();
-        const radius = cc.distanceTo(t1);
-        return new AffineCircle(cc, radius);
-    }
-
-    preimages(flavor: Flavor, iterations: number): AffineRay[] {
+    override preimages(flavor: Generator, iterations: number): AffineRay[] {
         switch (flavor) {
-        case Flavor.REGULAR:
+        case Generator.AREA:
             return this.regularPreimages(iterations);
-        case Flavor.SYMPLECTIC:
+        case Generator.LENGTH:
             return this.symplecticPreimages(iterations);
         default:
-            throw Error('Unknown flavor');
+            throw Error('Unknown generator');
         }
     }
 
@@ -451,7 +345,7 @@ export class NewAffinePolygonTable {
                     }
                     let pivot: Vector2;
                     try {
-                        pivot = this.reversePoint(mid);
+                        pivot = this.leftTangentPoint(mid);
                     } catch (e) {
                         continue;
                     }
@@ -523,10 +417,6 @@ export class NewAffinePolygonTable {
                     v1.clone().add(diff.clone().multiplyScalar(j * dl)),
                     v1.clone().add(diff.clone().multiplyScalar((j + 1) * dl)),
                     false));
-                // frontier.push(new AffineRay(
-                //     v2.clone().sub(diff.clone().multiplyScalar(j * dl)),
-                //     v2.clone().sub(diff.clone().multiplyScalar((j + 1) * dl)),
-                //     false));
             }
         }
 
@@ -540,6 +430,7 @@ export class NewAffinePolygonTable {
                 try {
                     pieces = this.slicePreimage(segment, true);
                 } catch (e) {
+                    console.log(e);
                     continue;
                 }
                 const extraPieces = [];
@@ -567,8 +458,8 @@ export class NewAffinePolygonTable {
                         // }
                         newFrontier.push(
                             new AffineRay(
-                                this.outerSymplectic(piece.start, true),
-                                this.outerSymplectic(piece.end, true), false));
+                                this.outer(piece.start, Generator.LENGTH, true),
+                                this.outer(piece.end, Generator.LENGTH, true), false));
 
                     } catch (e) {
                     }
@@ -577,8 +468,8 @@ export class NewAffinePolygonTable {
                 //     try {
                 //         newFrontier.push(
                 //             new AffineRay(
-                //                 this.outerSymplectic(piece.start, true),
-                //                 this.outerSymplectic(piece.end, true), false));
+                //                 this.outerLength(piece.start, true),
+                //                 this.outerLength(piece.end, true), false));
                 //     } catch (e) {
                 //     }
                 // }
@@ -586,5 +477,9 @@ export class NewAffinePolygonTable {
             frontier = newFrontier;
         }
         return preimages;
+    }
+
+    override shape(_: number): Shape {
+        return new Shape(this.vertices);
     }
 }

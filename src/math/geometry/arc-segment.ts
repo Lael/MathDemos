@@ -9,6 +9,8 @@ export class ArcSegment extends Segment {
     readonly startAngle: number;
     readonly endAngle: number;
 
+    private r2: number | undefined = undefined;
+
     constructor(readonly center: Complex, readonly radius: number, a1: number, a2: number) {
         super();
         if (a1 >= a2) {
@@ -46,11 +48,11 @@ export class ArcSegment extends Segment {
     }
 
     override containsPoint(p: Complex): boolean {
-        // const theta = normalizeAngle(this.center.heading(p), this.startAngle);
+        // const theta = normalizeAngle(this.center.tangentHeading(p), this.startAngle);
         // const aMatch = theta <= this.endAngle;
         // const rMatch = closeEnough(this.center.distance(p), this.radius);
         // return aMatch && rMatch;
-        return (normalizeAngle(this.center.heading(p), this.startAngle) <= this.endAngle) && closeEnough(this.center.distance(p), this.radius);
+        return (normalizeAngle(this.center.heading(p), this.startAngle) <= this.endAngle) && closeEnough(this.center.distanceSquared(p), this.radiusSquared);
     }
 
     override startHeading(): number {
@@ -108,5 +110,12 @@ export class ArcSegment extends Segment {
         }
         pts.push(this.end);
         return direction > 0 ? pts : pts.reverse();
+    }
+
+    get radiusSquared(): number {
+        if (this.r2 === undefined) {
+            this.r2 = this.radius * this.radius;
+        }
+        return this.r2;
     }
 }

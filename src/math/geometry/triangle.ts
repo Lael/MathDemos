@@ -110,11 +110,7 @@ export class Triangle {
         const l1 = Line.srcDir(new Complex(), Complex.polar(1, angleA));
         const l2 = Line.srcDir(new Complex(1, 0), Complex.polar(1, Math.PI - angleB));
         const p3 = l1.intersectLine(l2);
-        const p = 1 + p3.distance(new Complex()) + p3.distance(new Complex(1, 0));
-        // const a = p3.y / 2;
-        // const sa = Math.sqrt(a);
-        // return new Triangle(new Vector2(), new Vector2(1 / sa, 0), new Vector2(p3.x / sa, p3.y / sa));
-        return new Triangle(new Vector2(), new Vector2(1 / p, 0), new Vector2(p3.x / p, p3.y / p));
+        return new Triangle(new Vector2(), new Vector2(1, 0), new Vector2(p3.x, p3.y)).withArea(1);
     }
 
     static fromThreeSides(sideA: number, sideB: number, sideC: number): Triangle {
@@ -164,5 +160,16 @@ export class Triangle {
 
     get perimeter(): number {
         return this.p1.distanceTo(this.p2) + this.p2.distanceTo(this.p3) + this.p3.distanceTo(this.p1);
+    }
+
+    centroid(): Vector2 {
+        return this.p1.clone().add(this.p2).add(this.p3).multiplyScalar(1. / 3);
+    }
+
+    translate(v: Vector2): Triangle {
+        this.p1.add(v);
+        this.p2.add(v);
+        this.p3.add(v);
+        return this;
     }
 }

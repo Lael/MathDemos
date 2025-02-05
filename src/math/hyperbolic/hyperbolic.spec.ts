@@ -1,6 +1,7 @@
 import {
     halfPlaneToKlein,
-    halfPlaneToPoincare, HyperGeodesic,
+    halfPlaneToPoincare,
+    HyperGeodesic,
     HyperPoint,
     kleinToHalfPlane,
     kleinToPoincare,
@@ -20,28 +21,28 @@ describe('Hyperbolic Geometry', () => {
             expect(kleinToPoincare(new Complex(0.8, 0))).toEqual(new Complex(0.5, 0));
         });
 
-        it('converts poincare to half plane', () => {
+        it('converts poincare to half geometry', () => {
             expect(poincareToHalfPlane(Complex.ZERO).equals(new Complex(0, 1))).toBeTrue();
             expect(poincareToHalfPlane(new Complex(0, -1)).equals(Complex.ZERO)).toBeTrue();
             expect(poincareToHalfPlane(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(poincareToHalfPlane(new Complex(0, 1)).isInfinite()).toBeTrue();
         });
 
-        it('converts half plane to poincare', () => {
+        it('converts half geometry to poincare', () => {
             expect(halfPlaneToPoincare(new Complex(0, 1)).equals(Complex.ZERO)).toBeTrue();
             expect(halfPlaneToPoincare(Complex.ZERO).equals(new Complex(0, -1))).toBeTrue();
             expect(halfPlaneToPoincare(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(halfPlaneToPoincare(Complex.INFINITY).equals(new Complex(0, 1))).toBeTrue();
         });
 
-        it('converts klein to half plane', () => {
+        it('converts klein to half geometry', () => {
             expect(kleinToHalfPlane(Complex.ZERO).equals(new Complex(0, 1))).toBeTrue();
             expect(kleinToHalfPlane(new Complex(0, -1)).equals(Complex.ZERO)).toBeTrue();
             expect(kleinToHalfPlane(Complex.ONE).equals(Complex.ONE)).toBeTrue();
             expect(kleinToHalfPlane(new Complex(0, 1)).isInfinite()).toBeTrue();
         });
 
-        it('converts half plane to klein', () => {
+        it('converts half geometry to klein', () => {
             expect(halfPlaneToKlein(new Complex(0, 1)).equals(Complex.ZERO)).toBeTrue();
             expect(halfPlaneToKlein(Complex.ZERO).equals(new Complex(0, -1))).toBeTrue();
             expect(halfPlaneToKlein(Complex.ONE).equals(Complex.ONE)).toBeTrue();
@@ -51,55 +52,55 @@ describe('Hyperbolic Geometry', () => {
 
     describe('HyperPoint', () => {
         it('validates Poincaré points', () => {
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromPoincare(new Complex(0.5, 0.5));
             }).not.toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromPoincare(new Complex(0.1, 0.2).normalize());
             }).not.toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromPoincare(new Complex(0.1, 0.2).normalize(1.1));
             }).toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromPoincare(Complex.INFINITY);
             }).toThrow();
         });
 
         it('validates Klein points', () => {
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromKlein(new Complex(0.5, 0.5));
             }).not.toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromKlein(new Complex(0.1, 0.2).normalize());
             }).not.toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromKlein(new Complex(0.1, 0.2).normalize(1.1));
             }).toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromKlein(Complex.INFINITY);
             }).toThrow();
         });
 
-        it('validates half-plane points', () => {
-            expect(function() {
+        it('validates half-geometry points', () => {
+            expect(function () {
                 HyperPoint.fromHalfPlane(new Complex(0.5, 0.5));
             }).not.toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromHalfPlane(new Complex(0.1, 0.0));
             }).not.toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromHalfPlane(new Complex(0.1, -0.2));
             }).toThrow();
 
-            expect(function() {
+            expect(function () {
                 HyperPoint.fromHalfPlane(Complex.INFINITY);
             }).not.toThrow();
         });

@@ -1,14 +1,15 @@
 export enum Duality {
-    INNER,
-    OUTER,
+    INNER = "Inner",
+    OUTER = "Outer",
 }
 
-export enum Flavor {
-    REGULAR,
-    SYMPLECTIC,
+export enum Generator {
+    LENGTH = "Length",
+    AREA = "Area",
 }
 
-export enum Plane {
-    AFFINE,
-    HYPERBOLIC,
+export enum Geometry {
+    AFFINE = "Affine",
+    HYPERBOLIC = "Hyperbolic",
+    SPHERICAL = "Spherical",
 }

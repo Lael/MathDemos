@@ -1,48 +1,191 @@
-import {AffineGeodesic, AffinePoint, Circle, GeodesicLike, PointLike} from "../geometry/geometry";
-import {HyperbolicModel} from "../hyperbolic/hyperbolic";
-import {Drawable} from "../../graphics/shapes/drawable";
-import {Color} from "../../graphics/shapes/color";
 import {Complex} from "../complex";
+import {Mesh, Shape, Vector2, Vector3} from "three";
+import {Generator} from "./new-billiard";
+import {LineSegment} from "../geometry/line-segment";
+import {AffineCircle} from "../geometry/affine-circle";
+import {Line} from "../geometry/line";
+import {closeEnough} from "../math-helpers";
+import {AffineRay} from "./affine-polygon-table";
+import {SpherePoint} from "../geometry/spherical";
+import {ThickLine} from "../../graphics/thickline";
 
-export abstract class BilliardTable<Point extends PointLike, Geodesic extends GeodesicLike<Point>> {
-    static readonly TABLE_FILL = Color.billiardsScheme.tableFill;
-    static readonly TABLE_BORDER = Color.billiardsScheme.tableBorder;
-    static readonly PATH_THICKNESS = 0.005;
-    static readonly TABLE_BORDER_THICKNESS = 0.0075;
-    readonly singularities: Drawable[] = [];
+export type AffineInnerState = {
+    time: number;
+    angle: number;
+}
 
-    // Evaluate an anti-clockwise parametrization of the boundary of the table.
-    abstract point(time: number): Point;
+export abstract class AffineOuterBilliardTable {
+    abstract point(time: number): Vector2;
 
-    // Find the (anti-clockwise) direction of the tangent line at a specific point.
+    abstract time(point: Vector2): number;
+
     abstract tangentHeading(time: number): number | undefined;
 
-    // Given a time and a heading, construct a chord and find its next intersection with the table (as a time).
-    abstract intersect(time: number, heading: number): number;
+    abstract leftTangentPoint(point: Vector2): Vector2;
 
-    // Geodesic starting from object and passing through a point on the outside of the table on the right side.
-    abstract rightTangentGeodesic(object: Point | Circle<Point>): Geodesic;
+    abstract rightTangentPoint(point: Vector2): Vector2;
 
-    // The point on the table on the right tangent geodesic.
-    abstract rightTangentPoint(object: Point | Circle<Point>): Point;
+    abstract leftTangentLine(circle: AffineCircle): Line;
 
-    // Geodesic starting from object and passing through a point on the outside of the table on the left side.
-    abstract leftTangentGeodesic(object: Point | Circle<Point>): Geodesic;
+    abstract rightTangentLine(circle: AffineCircle): Line;
 
-    // The point on the table on the left tangent geodesic.
-    abstract leftTangentPoint(object: Point | Circle<Point>): Point;
+    abstract containsPoint(point: Vector2): boolean;
 
-    // Invert point through right tangent point.
-    abstract rightInvertPoint(point: Point): Point;
+    abstract pointOnBoundary(point: Vector2): boolean;
 
-    // Invert point through left tangent point.
-    abstract leftInvertPoint(point: Point): Point;
+    outer(point: Vector2, generator: Generator, inverse = false): Vector2 {
+        switch (generator) {
+        case Generator.LENGTH:
+            let lt = this.leftTangentPoint(point);
+            let rt = this.rightTangentPoint(point);
+            let fourthCircle = this.outerLengthCircle(point, inverse);
+            if (inverse) {
+                let l1 = this.leftTangentLine(fourthCircle);
+                let l2 = Line.throughTwoPoints(point, lt);
+                return l1.intersectLine(l2).toVector2();
+            } else {
+                let l1 = this.rightTangentLine(fourthCircle);
+                let l2 = Line.throughTwoPoints(point, rt);
+                return l1.intersectLine(l2).toVector2();
+            }
+        case Generator.AREA:
+            let invertPoint: Vector2;
+            if (inverse) {
+                invertPoint = this.leftTangentPoint(point);
+            } else {
+                invertPoint = this.rightTangentPoint(point);
+            }
+            return invertPoint.clone().sub(point).add(invertPoint);
+        }
+    }
 
-    // Return a drawable representation of the table itself.
-    abstract toDrawable(gl: WebGL2RenderingContext,
-                        model: HyperbolicModel | undefined,
-                        fill: Color | undefined,
-                        border: Color | undefined): Drawable;
+    outerLengthCircle(point: Vector2, reverse: boolean = false) {
+        const t1 = reverse ? this.leftTangentPoint(point) : this.rightTangentPoint(point);
+        const t2 = reverse ? this.rightTangentPoint(point) : this.leftTangentPoint(point);
+        const d = t1.distanceTo(point);
+        const m = point.clone().add(point.clone().sub(t2).normalize().multiplyScalar(d));
+        const lf = Line.throughTwoPoints(point, t1);
+        const lb = Line.throughTwoPoints(point, t2);
+        const pf = lf.perpAtPoint(t1);
+        const pb = lb.perpAtPoint(m);
+        const cc = pf.intersectLine(pb);
+        const radius = cc.toVector2().distanceTo(t1);
+        return new AffineCircle(cc, radius);
+    }
+
+    iterateOuter(start: Vector2, generator: Generator, iters: number, computeCenters: boolean = false): Vector2[][] {
+        if (this.containsPoint(start)) {
+            // console.log(`point is in interior of table: <${start.x}, ${start.y}>`);
+            return [[], []];
+        }
+        if (this.pointOnBoundary(start)) {
+            // console.log(`point is on boundary of table: <${start.x}, ${start.y}>`);
+            return [[], []];
+        }
+        const points = [start];
+        const centers: Vector2[] = [];
+        let point = start;
+        for (let i = 0; i < iters; i++) {
+            let newPoint: Vector2;
+            try {
+                newPoint = this.outer(point, generator);
+                points.push(newPoint);
+                if (computeCenters) {
+                    if (generator === Generator.LENGTH) {
+                        const circle = this.outerLengthCircle(point, false);
+                        centers.push(circle.center.toVector2());
+                    } else {
+                        centers.push(point.clone().add(newPoint).multiplyScalar(0.5));
+                    }
+                }
+            } catch (e) {
+                console.log(e);
+                return [points, centers];
+            }
+            point = newPoint;
+            if (closeEnough(newPoint.distanceTo(start), 0)) break;
+        }
+        return [points, centers];
+    }
+
+    shape(n: number): Shape {
+        let points = [];
+        for (let i = 0; i <= n; i++) {
+            points.push(this.point(i * (1.0 / n)));
+        }
+        let s = new Shape(points);
+        return s;
+    }
+
+    preimages(flavor: Generator, iterations: number): AffineRay[] {
+        return [];
+    }
+}
+
+
+export abstract class SphericalOuterBilliardTable {
+    abstract point(time: number): SpherePoint;
+
+    abstract time(point: SpherePoint): number;
+
+    abstract tangentVector(time: number): Vector3 | undefined;
+
+    abstract leftTangentPoint(point: SpherePoint): SpherePoint;
+
+    abstract rightTangentPoint(point: SpherePoint): SpherePoint;
+
+    abstract containsPoint(point: SpherePoint): boolean;
+
+    abstract pointOnBoundary(point: SpherePoint): boolean;
+
+    outer(point: SpherePoint, inverse = false): SpherePoint {
+        let invertPoint: SpherePoint;
+        if (inverse) {
+            invertPoint = this.leftTangentPoint(point);
+        } else {
+            invertPoint = this.rightTangentPoint(point);
+        }
+        return invertPoint.reflect(point);
+    }
+
+    iterateOuter(start: SpherePoint, iters: number): SpherePoint[] {
+        if (this.containsPoint(start)) {
+            // console.log(`point is in interior of table: <${start.x}, ${start.y}>`);
+            return [];
+        }
+        if (this.pointOnBoundary(start)) {
+            // console.log(`point is on boundary of table: <${start.x}, ${start.y}>`);
+            return [];
+        }
+        const points = [start];
+        let point = start;
+        for (let i = 0; i < iters; i++) {
+            let newPoint: SpherePoint;
+            try {
+                newPoint = this.outer(point);
+                points.push(newPoint);
+
+            } catch (e) {
+                console.log(e);
+                return points;
+            }
+            point = newPoint;
+            if (closeEnough(newPoint.distanceTo(start), 0)) break;
+        }
+        return points;
+    }
+
+    mesh(n: number): Mesh {
+        let points = [];
+        for (let i = 0; i <= n; i++) {
+            points.push(this.point(i * (1.0 / n)).coords);
+        }
+        return new ThickLine(points, 6, 0xff0000).mesh;
+    }
+
+    preimages(flavor: Generator, iterations: number): AffineRay[] {
+        return [];
+    }
 }
 
 export function fixTime(time: number): number {
@@ -54,19 +197,39 @@ export function fixTime(time: number): number {
 // Arguments:
 // ip, g1, g2, tp
 // ip is intersection, tp lies on g1, circle should be between positive directions of g1 and g2
-export function affineFourthCircle(ip: AffinePoint,
-                                   g1: AffineGeodesic,
-                                   g2: AffineGeodesic,
-                                   tp: AffinePoint): Circle<AffinePoint> {
-    const v1 = g1.p2.resolve().minus(g1.p1.resolve()).normalize();
-    const v2 = g2.p2.resolve().minus(g2.p1.resolve()).normalize();
-    const bv = v1.plus(v2).normalize();
-    const ab = new AffineGeodesic(ip, new AffinePoint(ip.resolve().plus(bv)), true, true);
-    const pv = v1.times(new Complex(0, 1));
-    const pl = new AffineGeodesic(tp, new AffinePoint(tp.resolve().plus(pv)), true, true);
-    const c = ab.intersect(pl);
+// export function affineFourthCircle(ip: AffinePoint,
+//                                    g1: AffineGeodesic,
+//                                    g2: AffineGeodesic,
+//                                    tp: AffinePoint): Circle<AffinePoint> {
+//     const v1 = g1.p2.resolve().minus(g1.p1.resolve()).normalize();
+//     const v2 = g2.p2.resolve().minus(g2.p1.resolve()).normalize();
+//     const bv = v1.plus(v2).normalize();
+//     const ab = new AffineGeodesic(ip, new AffinePoint(ip.resolve().plus(bv)), true, true);
+//     const pv = v1.times(new Complex(0, 1));
+//     const pl = new AffineGeodesic(tp, new AffinePoint(tp.resolve().plus(pv)), true, true);
+//     const c = ab.intersect(pl);
+//     if (c === undefined) throw Error('No circle intersection');
+//     return new Circle<AffinePoint>(
+//         c, c.distance(tp)
+//     );
+// }
+
+// Arguments:
+// ip, g1, g2, tp
+// ip is intersection, tp lies on g1, circle should be between positive directions of g1 and g2
+export function affineFourthCircle(ip: Vector2,
+                                   g1: LineSegment,
+                                   g2: LineSegment,
+                                   tp: Vector2): AffineCircle {
+    const v1 = g1.end.minus(g1.start).toVector2().normalize();
+    const v2 = g2.end.minus(g2.start).toVector2().normalize();
+    const bv = v1.clone().add(v2).normalize();
+    const ab = Line.throughTwoPoints(ip, ip.clone().add(bv));
+    const pv = new Vector2(-v1.y, v1.x);
+    const pl = Line.throughTwoPoints(tp, tp.clone().add(pv));
+    const c = ab.intersectLine(pl);
     if (c === undefined) throw Error('No circle intersection');
-    return new Circle<AffinePoint>(
-        c, c.distance(tp)
+    return new AffineCircle(
+        c, c.distance(Complex.fromVector2(tp))
     );
 }

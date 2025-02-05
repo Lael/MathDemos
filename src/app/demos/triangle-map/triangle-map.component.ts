@@ -1,4 +1,4 @@
-import {Component, OnDestroy} from "@angular/core";
+import {Component, OnDestroy, OnInit} from "@angular/core";
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {
@@ -22,6 +22,9 @@ import {Triangle} from "../../../math/geometry/triangle";
 import {iterate} from "../ticktock/ticktock.component";
 import {randFloat, randInt} from "three/src/math/MathUtils";
 import {GUI} from "dat.gui";
+import {ActivatedRoute, Router} from "@angular/router";
+import {Subscription} from "rxjs";
+import {Location} from "@angular/common";
 
 const SPEED = 0.1;
 
@@ -37,19 +40,14 @@ interface PhaseJob {
     t: number,
 }
 
-/*
- * TODO:
- *  1. help
- *  2. Maxim's triangles
- *  3.
- */
+const CLEAR_COLOR = 0x0a2933;
 
 @Component({
     selector: 'triangle-map',
     templateUrl: '../../widgets/three-demo/three-demo.component.html',
-    styleUrls: ['../../widgets/three-demo/three-demo.component.sass']
+    styleUrls: ['../../widgets/three-demo/three-demo.component.sass'],
 })
-export class TriangleMapComponent extends ThreeDemoComponent implements OnDestroy {
+export class TriangleMapComponent extends ThreeDemoComponent implements OnDestroy, OnInit {
     orbitControls: OrbitControls;
     space: ThreeLine;
     angleSpace = true;
@@ -72,9 +70,9 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
         phase: false,
         phaseMinRadius: 0.6,
         phaseMaxRadius: 0.9,
-        t: 0.4332761727,
+        t: 0.56,
         resolution: 6,
-        attempts: 10,
+        attempts: 8,
         fixArea: true,
         fixPerimeter: false,
     }
@@ -82,18 +80,26 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
     gui: GUI;
     dirty = true;
 
-    constructor() {
+    private routerSub: Subscription | undefined;
+
+    constructor(private route: ActivatedRoute, private router: Router, private location: Location) {
         super();
         this.useOrthographic = true;
-        this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
         this.space = new ThreeLine(new BufferGeometry().setFromPoints([
             new Vector3(Math.PI, 0, 0),
             new Vector3(0, Math.PI, 0),
             new Vector3(0, 0, Math.PI),
             new Vector3(Math.PI, 0, 0),
         ]), new LineBasicMaterial({color: 0xffffff}));
-        this.camera.position.set(-5, -5, -5);
-        this.camera.lookAt(5, 5, 5);
+
+        this.renderer.setClearColor(CLEAR_COLOR);
+
+        this.camera.position.set(5, 7, 5);
+        this.camera.lookAt(-5, -3, -5);
+        this.camera.zoom = 0.4;
+        this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.orbitControls.zoomSpeed = 0.5;
+        this.orbitControls.enableRotate = false;
         if (this.params.sample) this.sampleSetup();
         if (this.params.phase) this.phaseSetup();
         this.scene.add(this.space);
@@ -101,6 +107,45 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
         this.updateGUI();
         this.start = new Mesh(new SphereGeometry(0.01), new MeshBasicMaterial({color: 0x44aaff}));
         this.scene.add(this.start);
+        this.helpTitle = 'Evasion Shape Space';
+        this.shortcuts.push(['Arrow Keys', 'Move test point around shape space']);
+        this.shortcuts.push(["[ & ]", "Change the value of t"]);
+        this.shortcuts.push(["Shift", "Slow movement of test point or t by 10x"]);
+        this.shortcuts.push(["Alt", "Slow movement of test point or t by 100x"]);
+        this.shortcuts.push(["C", "Clear the screen"]);
+        this.shortcuts.push(["O", "Show the current test point in the geometry view"]);
+        this.shortcuts.push(['Degenerate', 'Compute for given t which triangles are degenerate (red)']);
+        this.shortcuts.push(['Phase', 'Draw a phase portrait for the current settings']);
+        this.shortcuts.push(['Clear', 'Show only the orbit of the test point']);
+    }
+
+    ngOnInit() {
+        this.routerSub = this.route.queryParamMap.subscribe(
+            (paramMap) => {
+                if (
+                    paramMap.has('A') &&
+                    paramMap.has('B') &&
+                    paramMap.has('C') &&
+                    paramMap.has('t')
+                ) {
+                    const a = JSON.parse(paramMap.get('A')!);
+                    const b = JSON.parse(paramMap.get('B')!);
+                    const c = JSON.parse(paramMap.get('C')!);
+                    const t = JSON.parse(paramMap.get('t')!);
+                    this.params.t = t;
+                    console.log(t);
+                    this.updateGUI();
+                    this.scene.clear();
+                    this.scene.add(this.space);
+                    this.scene.add(this.start);
+                    this.startingTriangle = Triangle.fromThreeAngles(a, b, c);
+                    this.dirty = true;
+                    this.routerSub?.unsubscribe();
+                    this.routerSub = undefined;
+                    this.location.replaceState('/triangle-map');
+                }
+            }
+        )
     }
 
     updateGUI() {
@@ -171,28 +216,13 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
             });
         }
 
-        this.gui.add(this.params, 'fixArea').name('Area = 1').onFinishChange(() => {
-            this.params.fixPerimeter = !this.params.fixArea;
-            this.updateGUI();
-            if (this.params.sample) this.sampleSetup();
-            if (this.params.phase) this.phaseSetup();
-            this.dirty = true;
-        });
-
-        this.gui.add(this.params, 'fixPerimeter').name('Perimeter = 1').onFinishChange(() => {
-            this.params.fixArea = !this.params.fixArea;
-            this.updateGUI();
-            if (this.params.sample) this.sampleSetup();
-            if (this.params.phase) this.phaseSetup();
-            this.dirty = true;
-        });
-
         this.gui.open();
     }
 
     override ngOnDestroy() {
         super.ngOnDestroy();
         this.gui.destroy();
+        if (this.routerSub) this.routerSub.unsubscribe();
     }
 
     processKeyboardInput(dt: number) {
@@ -207,6 +237,7 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
         if (this.keysPressed.get('ArrowDown')) dv.y -= 1;
         if (this.keysPressed.get('ArrowLeft')) dv.x -= 1;
         if (this.keysPressed.get('ArrowRight')) dv.x += 1;
+        this.print = false;
         if (this.keysPressed.get('KeyL') && !this.debounce) {
             this.print = true;
             this.debounce = true;
@@ -233,33 +264,31 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
 
         if (dv.length() != 0) {
             dv.normalize().multiplyScalar(multiplier * SPEED * dt / this.camera.zoom);
-            dv.x *= 2;
-            this.v.add(dv);
+            let d3 = new Vector3(1, 0, -1).normalize().multiplyScalar(dv.x / Math.sqrt(1.5))
+                .add(new Vector3(-1, 2, -1).normalize().multiplyScalar(dv.y));
+            let a = new Vector3(this.startingTriangle.angleA, this.startingTriangle.angleB, this.startingTriangle.angleC).add(d3);
+            this.startingTriangle = Triangle.fromThreeAngles(a.x, a.y, a.z);
             this.dirty = true;
         }
     }
 
-    override keydown(e: KeyboardEvent) {
-        super.keydown(e);
-        if (e.code === 'KeyG') {
+    override keyup(e: KeyboardEvent) {
+        super.keyup(e);
+        if (e.code === 'KeyO') {
             this.goToGeometry();
         }
     }
 
     goToGeometry() {
-        window.open('/#/ticktock', '_blank');
-    }
-
-    updateStartingTriangle() {
-        // let d2 = new Vector2(this.v.y * Math.cos(this.v.x), this.v.y * Math.sin(this.v.x));
-        let a = xyToTriSpace(this.v)
-        if (a.x <= 0 || a.y <= 0 || a.z <= 0) return;
-        this.startingTriangle = Triangle.fromThreeAngles(a.x, a.y, a.z);
-        if (this.params.fixArea) {
-            this.startingTriangle.withArea();
-        } else if (this.params.fixPerimeter) {
-            this.startingTriangle.withPerimeter(1);
-        }
+        this.startingTriangle.translate(this.startingTriangle.centroid().multiplyScalar(-1));
+        this.router.navigate(['/ticktock'], {
+            queryParams: {
+                t: JSON.stringify(this.params.t),
+                p1: JSON.stringify([this.startingTriangle.p1.x, this.startingTriangle.p1.y]),
+                p2: JSON.stringify([this.startingTriangle.p2.x, this.startingTriangle.p2.y]),
+                p3: JSON.stringify([this.startingTriangle.p3.x, this.startingTriangle.p3.y]),
+            }
+        });
     }
 
     iterateExtouch() {
@@ -329,7 +358,7 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
             points = [new Vector3(tri.sideA, tri.sideB, tri.sideC)];
         }
         let failed = false;
-        for (let i = 0; i < Math.pow(2, this.params.attempts); i++) {
+        for (let i = 0; i < Math.pow(2, this.params.attempts) - 1; i++) {
             let newVertices = [];
             try {
                 newVertices = iterate([tri.p1, tri.p2, tri.p3], t);
@@ -348,12 +377,13 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
             }
             points.push(v);
         }
+        if (failed) return;
         let color;
         let size;
         if (this.params.phase) {
             color = new Color().setRGB(randFloat(0.3, 1), randFloat(0.3, 1), randFloat(0.3, 1));
         } else {
-            color = new Color().setRGB(1, 1, 1);
+            color = new Color().setRGB(randFloat(0.3, 1), randFloat(0.3, 1), randFloat(0.3, 1));
         }
         this.pts = new Points(new BufferGeometry().setFromPoints(points),
             new PointsMaterial({color: failed ? new Color().setRGB(1, 0, 0) : color}));
@@ -442,9 +472,10 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
         const resolution = Math.pow(2, this.params.resolution);
         const t = this.params.t;
         for (let r = this.params.phaseMinRadius; r < this.params.phaseMaxRadius; r += 1 / resolution) {
-            const offset = randFloat(0, 2 * Math.PI);
-            const dTheta = 2 * Math.PI / resolution * this.params.phaseMaxRadius / r;
-            for (let theta = 0; theta < 2 * Math.PI; theta += dTheta) {
+            // const offset = randFloat(0, Math.PI);
+            const offset = 0;
+            const dTheta = 4 * (Math.PI / 3) / resolution * this.params.phaseMaxRadius / r;
+            for (let theta = Math.PI / 3; theta < Math.PI * 4. / 6; theta += dTheta) {
                 let d2 = new Vector2(r * Math.cos(theta + offset), r * Math.sin(theta + offset));
                 let d3 = new Vector3(-1, 1, 0).normalize().multiplyScalar(d2.y)
                     .add(new Vector3(-1, -1, 2).normalize().multiplyScalar(d2.x));
@@ -497,26 +528,22 @@ export class TriangleMapComponent extends ThreeDemoComponent implements OnDestro
             this.processKeyboardInput(dt);
             const z = 1 / this.camera.zoom;
             this.start.scale.set(z, z, z);
+            if (this.print) {
+                console.log(this.startingTriangle.sideA);
+                console.log(this.startingTriangle.sideB);
+                console.log(this.startingTriangle.sideC);
+            }
             if (this.dirty) {
                 if (this.params.clear) {
                     this.scene.clear();
                     this.scene.add(this.space);
                     this.scene.add(this.start);
                 }
-                this.updateStartingTriangle();
-                console.clear();
-                console.log(this.startingTriangle.perimeter);
-                console.log(this.startingTriangle.p1);
-                console.log(this.startingTriangle.p2);
-                console.log(this.startingTriangle.p3);
+
                 this.iterateMap();
                 this.start.position.set(this.startingTriangle.angleA, this.startingTriangle.angleB, this.startingTriangle.angleC);
             }
         }
-    }
-
-    override help(): String {
-        return super.help();
     }
 }
 

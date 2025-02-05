@@ -1,5 +1,5 @@
 import {HyperbolicModel, HyperGeodesic, HyperIsometry, HyperPoint} from "../hyperbolic/hyperbolic";
-import {Flavor} from "./new-billiard";
+import {Generator} from "./new-billiard";
 import {Vector2} from "three";
 import {HyperPolygon} from "../hyperbolic/hyper-polygon";
 import {LineSegment} from "../geometry/line-segment";
@@ -76,7 +76,7 @@ export class NewHyperbolicPolygonTable {
     }
 
     iterateInner(state: HyperbolicInnerState,
-                 flavor: Flavor,
+                 flavor: Generator,
                  iterations: number = 1): HyperGeodesic[] {
         let chord;
         try {
@@ -88,14 +88,14 @@ export class NewHyperbolicPolygonTable {
         for (let i = 0; i < iterations; i++) {
             let newChord: HyperGeodesic;
             switch (flavor) {
-            case Flavor.REGULAR:
+            case Generator.LENGTH:
                 try {
                     newChord = this.innerRegular(chord);
                 } catch (e) {
                     return chords;
                 }
                 break;
-            case Flavor.SYMPLECTIC:
+            case Generator.AREA:
                 return chords;
                 // try {
                 //     newChord = this.innerSymplectic(chord);
@@ -104,7 +104,7 @@ export class NewHyperbolicPolygonTable {
                 // }
                 // break;
             default:
-                throw Error('Unknown flavor');
+                throw Error('Unknown generator');
             }
             if (newChord.p1.equals(chords[0].p1) && newChord.p2.equals(chords[0].p2)) break;
             chords.push(newChord);
@@ -174,11 +174,11 @@ export class NewHyperbolicPolygonTable {
     }
 
     iterateOuter(startingPoint: HyperPoint,
-                 flavor: Flavor,
+                 flavor: Generator,
                  iterations: number = 1): HyperPoint[] {
         const orbit = [startingPoint];
         let point = startingPoint;
-        if (flavor === Flavor.SYMPLECTIC) return orbit;
+        if (flavor === Generator.AREA) return orbit;
         for (let i = 0; i < iterations; i++) {
             let v: HyperPoint;
             try {
@@ -197,19 +197,20 @@ export class NewHyperbolicPolygonTable {
         return orbit;
     }
 
-    preimages(flavor: Flavor,
+    preimages(flavor: Generator,
               iterations: number = 1): HyperGeodesic[] {
-        if (flavor === Flavor.SYMPLECTIC) return [];
+        if (flavor === Generator.AREA) return [];
         this.workStartTime = Date.now();
         this.singularities = [];
         let frontier: HyperGeodesic[] = [];
         for (let i = 0; i < this.n; i++) {
             // for (let i = 0; i < 1; i++) {
             const g = this.polygon.geodesics[i];
-            let n = 2;
-            let n1 = g.p.translate(g.ip, g.length * n);
-            let n2 = g.p.translate(g.ip, g.length * (n + 1));
-            frontier.push(new HyperGeodesic(n1, n2));
+            frontier.push(new HyperGeodesic(g.p, g.ip));
+            // let n = 2;
+            // let n1 = g.p.translate(g.ip, g.length * n);
+            // let n2 = g.p.translate(g.ip, g.length * (n + 1));
+            // frontier.push(new HyperGeodesic(n1, n2));
         }
         for (let i = 0; i < iterations; i++) {
             // wait until there are enough preimages to use all the workers

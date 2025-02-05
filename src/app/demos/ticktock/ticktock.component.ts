@@ -1,4 +1,4 @@
-import {Component} from "@angular/core";
+import {Component, OnDestroy, OnInit} from "@angular/core";
 import {ThreeDemoComponent} from "../../widgets/three-demo/three-demo.component";
 import * as THREE from 'three';
 import {
@@ -23,6 +23,10 @@ import {normalizeAngle} from "../../../math/math-helpers";
 import {AffineCircle} from "../../../math/geometry/affine-circle";
 import {Line as GeoLine} from "../../../math/geometry/line";
 import {LineSegment} from "../../../math/geometry/line-segment";
+import {ActivatedRoute, Router} from "@angular/router";
+import {Triangle} from "../../../math/geometry/triangle";
+import {Subscription} from "rxjs";
+import {Location} from "@angular/common";
 
 // Colors
 const CLEAR_COLOR = 0x0a2933;
@@ -41,7 +45,7 @@ const CIRCLE_CENTER_COLOR = 0xf5dd90;
     templateUrl: '../../widgets/three-demo/three-demo.component.html',
     styleUrls: ['../../widgets/three-demo/three-demo.component.sass'],
 })
-export class TicktockComponent extends ThreeDemoComponent {
+export class TicktockComponent extends ThreeDemoComponent implements OnDestroy, OnInit {
 
     orbitControls: OrbitControls;
     dragControls: DragControls;
@@ -53,33 +57,42 @@ export class TicktockComponent extends ThreeDemoComponent {
         n: 3,
         vectorField: false,
         timeStep: -4,
-        e: 0.4332761727,
-        iterations: 10,
+        e: 0.56,
+        f: 0.3,
+        iterations: 1,
         polygonSides: true,
+        recurrences: true,
+        parents: true,
         polygonFill: true,
+        initialWireframe: true,
         vertexOrbits: true,
         vertexPaths: true,
         inscribed: false,
         centers: false,
+        commute: false,
     }
 
     gui: dat.GUI;
 
     // Stuff on the screen
     polygon: Mesh = new Mesh();
+    wireframe: Line = new Line();
     private polygonDirty = true;
     private orbitDirty = true;
     private drawDirty = true;
     private vertexOrbits: Points[] = [];
     private vertexPaths: Line[] = [];
     private images: Line[] = [];
+    private recurrences: Line[] = [];
+    private parents: Line[] = [];
     private centers: Points = new Points();
 
     private recentlyDragging = false;
     private selectedVertex = 0;
     private debounce = false;
+    private routerSub: Subscription | undefined;
 
-    constructor() {
+    constructor(private route: ActivatedRoute, private router: Router, private location: Location) {
         super();
         this.useOrthographic = true;
         this.updateOrthographicCamera();
@@ -98,11 +111,48 @@ export class TicktockComponent extends ThreeDemoComponent {
 
         this.gui = new dat.GUI();
         this.updateGUI();
+
+        this.helpTitle = 'Evasion';
+        this.shortcuts.push(['Space', 'Cycle selected vertex']);
+        this.shortcuts.push(['Arrow Keys', 'Move currently selected vertex']);
+        this.shortcuts.push(["Shift", "Slow movement of vertex by 10x"]);
+        this.shortcuts.push(["Alt", "Slow movement of vertex by 100x"]);
+    }
+
+    ngOnInit(): void {
+        this.routerSub = this.route.queryParamMap.subscribe(
+            (paramMap) => {
+                if (
+                    paramMap.has('p1') &&
+                    paramMap.has('p2') &&
+                    paramMap.has('p3') &&
+                    paramMap.has('t')
+                ) {
+                    const p1c = JSON.parse(paramMap.get('p1')!);
+                    const p2c = JSON.parse(paramMap.get('p2')!);
+                    const p3c = JSON.parse(paramMap.get('p3')!);
+                    const t = JSON.parse(paramMap.get('t')!);
+                    this.params.e = t;
+                    this.params.n = 3;
+                    this.updateGUI();
+                    this.resetVertices();
+                    this.draggables[0].position.set(p1c[0], p1c[1], 0);
+                    this.draggables[1].position.set(p2c[0], p2c[1], 0);
+                    this.draggables[2].position.set(p3c[0], p3c[1], 0);
+                    this.updateTable();
+                    this.markOrbitDirty();
+                    this.routerSub?.unsubscribe();
+                    this.routerSub = undefined;
+                    this.location.replaceState('/ticktock');
+                }
+
+            });
     }
 
     override ngOnDestroy() {
         super.ngOnDestroy();
         this.gui.destroy();
+        if (this.routerSub) this.routerSub.unsubscribe();
     }
 
     override frame(dt: number) {
@@ -112,18 +162,37 @@ export class TicktockComponent extends ThreeDemoComponent {
         if (this.drawDirty) this.updateDraw();
     }
 
-    override keydown(e: KeyboardEvent) {
-        super.keydown(e);
-        if (e.code === 'KeyG') {
+    override keyup(e: KeyboardEvent) {
+        super.keyup(e);
+        if (e.code === 'KeyO') {
             this.goToPhase();
         }
     }
 
     goToPhase() {
-        window.open('/#/triangle-map', '_blank');
+        if (this.draggables.length !== 3) return;
+        const triangle = new Triangle(
+            new Vector2(this.draggables[0].position.x, this.draggables[0].position.y),
+            new Vector2(this.draggables[1].position.x, this.draggables[1].position.y),
+            new Vector2(this.draggables[2].position.x, this.draggables[2].position.y),
+        );
+        const a = triangle.area;
+        const t = this.params.e / Math.sqrt(a);
+        this.router.navigate(
+            ['/triangle-map'],
+            {
+                queryParams: {
+                    t: JSON.stringify(t),
+                    A: JSON.stringify(triangle.angleA),
+                    B: JSON.stringify(triangle.angleB),
+                    C: JSON.stringify(triangle.angleC),
+                }
+            }
+        )
     }
 
     processKeyboardInput(dt: number) {
+        this.showHelp = !!this.keysPressed.get('KeyH');
         if (this.keysPressed.get('Space') != true) this.debounce = false;
         if (!this.debounce && this.keysPressed.get('Space') == true) {
             this.debounce = true;
@@ -134,12 +203,15 @@ export class TicktockComponent extends ThreeDemoComponent {
         let speed = 0.1;
         let x = 0;
         let y = 0;
+        let t = 0;
         if (this.keysPressed.get('ArrowLeft')) x -= 1;
         if (this.keysPressed.get('ArrowRight')) x += 1;
         if (this.keysPressed.get('ArrowDown')) y -= 1;
         if (this.keysPressed.get('ArrowUp')) y += 1;
         if (this.keysPressed.get('ShiftLeft')) speed *= 0.1;
         if (this.keysPressed.get('AltLeft')) speed *= 0.01;
+        if (this.keysPressed.get('BracketLeft')) t -= 1;
+        if (this.keysPressed.get('BracketRight')) t += 1;
         if (x != 0 || y != 0) {
             let d = new Vector3(x, y, 0).normalize().multiplyScalar(speed * dt);
             this.draggables[this.selectedVertex].position.add(d);
@@ -147,6 +219,11 @@ export class TicktockComponent extends ThreeDemoComponent {
             this.updateTable();
         } else {
             this.recentlyDragging = false;
+        }
+        if (t !== 0) {
+            this.params.e += t * speed * dt;
+            this.updateGUI();
+            this.markOrbitDirty();
         }
     }
 
@@ -171,7 +248,13 @@ export class TicktockComponent extends ThreeDemoComponent {
             this.params.vectorField ? 25 : 15).step(1).onFinishChange(this.markOrbitDirty.bind(this));
         this.gui.add(this.params, 'polygonFill').name('Fill starting')
             .onFinishChange(this.markDrawDirty.bind(this));
-        this.gui.add(this.params, 'polygonSides').name('Recurrences')
+        this.gui.add(this.params, 'initialWireframe').name('Initial Wireframe')
+            .onFinishChange(this.markDrawDirty.bind(this));
+        this.gui.add(this.params, 'recurrences').name('Recurrences')
+            .onFinishChange(this.markDrawDirty.bind(this));
+        this.gui.add(this.params, 'polygonSides').name('Wireframes')
+            .onFinishChange(this.markDrawDirty.bind(this));
+        this.gui.add(this.params, 'parents').name('Parents')
             .onFinishChange(this.markDrawDirty.bind(this));
         this.gui.add(this.params, 'vertexOrbits').name('Vertex dots')
             .onFinishChange(this.markDrawDirty.bind(this));
@@ -193,7 +276,7 @@ export class TicktockComponent extends ThreeDemoComponent {
 
     resetVertices() {
         this.selectedVertex = 0;
-        const points = [];
+        let points = [];
         this.scene.remove(...this.draggables);
         while (this.draggables.length) this.draggables.pop();
         const n = this.params.n;
@@ -205,12 +288,24 @@ export class TicktockComponent extends ThreeDemoComponent {
             points.push(c.toVector2());
         }
         if (n === 3) {
+            // const t = Triangle.fromThreeSides(1.4179689082215878, 1.4179689082215958, 1.8995270563052942);
+            // t.translate(t.centroid().multiplyScalar(-1));
             // points[0] = new Vector2(0.0, 0.0);
             // points[1] = new Vector2(1.4178836443539518, 0);
             // points[2] = new Vector2(1.2738894805322747, 1.4105529801151528);
-            points[0] = new Vector2(0.0, 0.0);
-            points[1] = new Vector2(1.208753082624802, 0);
-            points[2] = new Vector2(1.5774412642385192, 1.6545976417756127);
+            // points[0] = new Vector2(0.0, 0.0);
+            // points[1] = new Vector2(1.208753082624802, 0);
+            // points[2] = new Vector2(1.5774412642385192, 1.6545976417756127);
+            let parent = Triangle.fromThreeSides(0.721892, 0.478819, 0.851241);
+            // let a = 1;
+            // let t = this.params.e;
+            //
+            // let b = t + (Math.sqrt(4 * t * t + a * a) - a) / 2;
+            // console.log(a, b);
+            // let parent = Triangle.fromThreeSides(a, b, b);
+
+            points = evasionChild([parent.p1, parent.p2, parent.p3], this.params.e);
+            console.log(new Triangle(points[0], points[1], points[2]).area);
         }
         for (let i = 0; i < points.length; i++) {
             const p = points[i];
@@ -255,6 +350,7 @@ export class TicktockComponent extends ThreeDemoComponent {
         const geometry = new THREE.ShapeGeometry(shape);
         const material = new THREE.MeshBasicMaterial({color: FILL_COLOR});
         this.polygon = new THREE.Mesh(geometry, material);
+        this.wireframe = new Line(new BufferGeometry().setFromPoints(vertices.concat(vertices[0])), new LineBasicMaterial({color: FILL_COLOR}));
         this.scene.add(this.polygon);
 
         this.orbitDirty = true;
@@ -352,12 +448,50 @@ export class TicktockComponent extends ThreeDemoComponent {
         }
     }
 
+    checkCommute() {
+        let vertices = this.draggables.map(d => new Vector2(d.position.x, d.position.y));
+        let ev = iterate(vertices, this.params.e);
+        let efv = iterate(ev, this.params.f);
+        let fv = iterate(vertices, this.params.f);
+        let fev = iterate(fv, this.params.e);
+
+        let efMaterial = new LineBasicMaterial({color: 0xff0000})
+        let feMaterial = new LineBasicMaterial({color: 0x00ff00})
+
+        for (let i = 0; i < vertices.length; i++) {
+            this.vertexPaths.push(new Line(
+                new BufferGeometry().setFromPoints(
+                    [
+                        vertices[i],
+                        ev[i],
+                        efv[i],
+                    ]
+                ),
+                efMaterial));
+
+            this.vertexPaths.push(new Line(
+                new BufferGeometry().setFromPoints(
+                    [
+                        vertices[i],
+                        fv[i],
+                        fev[i],
+                    ]
+                ),
+                feMaterial));
+        }
+    }
+
     computeMapTrajectory() {
+        if (this.params.commute) {
+            this.checkCommute();
+            return;
+        }
         this.centers = new Points();
 
         const data: number[][] = [];
 
         let material = new PointsMaterial({color: OUTER_ORBIT_COLOR});
+        let parentMaterial = new PointsMaterial({color: SINGULARITY_COLOR});
         const it = (this.moving() ? Math.min(this.iterations, 100) : this.iterations);
         let vertices = this.draggables.map(d => new Vector2(d.position.x, d.position.y));
         let n = vertices.length;
@@ -373,16 +507,24 @@ export class TicktockComponent extends ThreeDemoComponent {
             new BufferGeometry().setFromPoints(vertices.concat([vertices[0]])),
             material));
         for (let i = 0; i < it; i++) {
+            let parentVertices;
             try {
-                vertices = this.iterate(vertices);
-                vertices = this.iterate(vertices);
+                parentVertices = evasionParent(vertices, this.params.e);
+                // if (n === 3) {
+                //     let parentTriangle = new Triangle(parentVertices[0], parentVertices[1], parentVertices[2]);
+                //     console.log('Parent sides', parentTriangle.sideA, parentTriangle.sideB, parentTriangle.sideC);
+                // }
+                vertices = evasionChild(parentVertices, this.params.e);
             } catch (e) {
                 console.log(e);
                 break;
             }
-            // this.images.push(new Line(
-            //     new BufferGeometry().setFromPoints(vertices.concat([vertices[0]])),
-            //     material));
+            this.parents.push(new Line(
+                new BufferGeometry().setFromPoints(parentVertices.concat([parentVertices[0]])),
+                parentMaterial));
+            this.images.push(new Line(
+                new BufferGeometry().setFromPoints(vertices.concat([vertices[0]])),
+                material));
             let dataRow = [];
             for (let j = 0; j < n; j++) {
                 paths[j].push(vertices[j]);
@@ -394,7 +536,7 @@ export class TicktockComponent extends ThreeDemoComponent {
                 d += Math.pow(dataRow[j] - initialLengths[j], 2);
             }
             if (d < 0.000_001) {
-                this.images.push(new Line(
+                this.recurrences.push(new Line(
                     new BufferGeometry().setFromPoints(vertices.concat([vertices[0]])),
                     material));
                 initialLengths = dataRow;
@@ -436,6 +578,8 @@ export class TicktockComponent extends ThreeDemoComponent {
         this.vertexPaths = [];
         this.vertexOrbits = [];
         this.images = [];
+        this.recurrences = [];
+        this.parents = [];
         if (this.params.vectorField) {
             this.computeVectorFieldTrajectory();
         } else {
@@ -470,8 +614,17 @@ export class TicktockComponent extends ThreeDemoComponent {
         if (this.params.polygonFill) {
             this.scene.add(this.polygon);
         }
+        if (this.params.initialWireframe) {
+            this.scene.add(this.wireframe);
+        }
         if (this.params.polygonSides && !this.params.vectorField) {
-            for (let ls of this.images) this.scene.add(ls);
+            this.scene.add(...this.images);
+        }
+        if (this.params.recurrences && !this.params.vectorField && this.recurrences.length > 0) {
+            this.scene.add(...this.recurrences);
+        }
+        if (this.params.parents && !this.params.vectorField) {
+            this.scene.add(...this.parents);
         }
         if (this.params.vertexPaths || this.params.vectorField) {
             for (let ls of this.vertexPaths) this.scene.add(ls);
@@ -484,11 +637,11 @@ export class TicktockComponent extends ThreeDemoComponent {
         }
         for (let i = 0; i < this.draggables.length; i++) {
             const d = this.draggables[i];
-            if (i == this.selectedVertex) {
-                d.scale.set(2, 2, 1);
-            } else {
-                d.scale.set(1, 1, 1);
-            }
+            // if (i == this.selectedVertex) {
+            //     d.scale.set(2, 2, 1);
+            // } else {
+            //     d.scale.set(1, 1, 1);
+            // }
             this.scene.add(d);
         }
     }
@@ -502,11 +655,11 @@ export class TicktockComponent extends ThreeDemoComponent {
     }
 }
 
-export function iterate(vertices: Vector2[], epsilon: number) {
+function evasionParent(vertices: Vector2[], epsilon: number) {
+    let n = vertices.length;
     let interiorAngles = [];
     let headings = [];
     let sideLengths = [];
-    let n = vertices.length;
     for (let i = 0; i < n; i++) {
         let v0 = vertices[((i + n) - 1) % n];
         let v1 = vertices[i];
@@ -514,7 +667,7 @@ export function iterate(vertices: Vector2[], epsilon: number) {
         let l1 = v1.distanceTo(v2);
         if (l1 < epsilon * 2) {
             // console.log("Too close!");
-            throw Error("Too close!");
+            throw Error(`Too close! ${l1}, 2t=${2 * epsilon}`);
         }
 
         let h1 = v2.clone().sub(v1.clone()).angle();
@@ -555,13 +708,23 @@ export function iterate(vertices: Vector2[], epsilon: number) {
         angleError = resultAngle - guessAngle;
         guessAngle = headings[0] + resultAngle;
     }
+    return guessVertices;
+}
+
+function evasionChild(parentVertices: Vector2[], epsilon: number) {
+    let n = parentVertices.length;
     let newVertices = [];
     for (let i = 0; i < n; i++) {
-        let v0 = guessVertices[i];
-        let v1 = guessVertices[(i + 1) % n];
+        let v0 = parentVertices[i];
+        let v1 = parentVertices[(i + 1) % n];
         let d = v0.clone().sub(v1).normalize().multiplyScalar(epsilon);
         newVertices.push(v0.clone().add(d));
     }
     newVertices.reverse();
     return newVertices;
+}
+
+export function iterate(vertices: Vector2[], epsilon: number) {
+    const parentVertices = evasionParent(vertices, epsilon)
+    return evasionChild(parentVertices, epsilon);
 }

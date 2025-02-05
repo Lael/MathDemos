@@ -14,7 +14,6 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
     orthographicDiagonal: number = 1;
     scene: THREE.Scene;
     renderer: THREE.WebGLRenderer;
-    showHelp = false;
 
     @ViewChild('render_container', {static: true})
     hostElement?: ElementRef;
@@ -23,7 +22,13 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
 
     private resized = true;
 
+    showHelp = false;
+    helpTitle = 'Demo';
+    helpText = '';
+    shortcuts: string[][] = [];
+
     keysPressed = new Map<string, boolean>();
+    keysJustPressed = new Set<string>;
     private old: number;
 
     protected constructor() {
@@ -31,7 +36,7 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
         });
-        this.renderer.shadowMap.enabled = true;
+        // this.renderer.shadowMap.enabled = true;
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         window.addEventListener('resize', this.onResize.bind(this));
@@ -46,7 +51,6 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         document.addEventListener('mousedown', this.mousedown.bind(this));
         document.addEventListener('mousemove', this.mousemove.bind(this));
         document.addEventListener('mouseup', this.mouseup.bind(this));
-
         document.addEventListener('keydown', this.keydown.bind(this));
         document.addEventListener('keyup', this.keyup.bind(this));
         document.addEventListener('focusout', this.focusout.bind(this));
@@ -65,6 +69,11 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         document.body.removeChild(this.stats.dom);
         this.hostElement?.nativeElement.removeChild(this.renderer.domElement);
         this.renderer.dispose();
+        if (document.removeAllListeners) document.removeAllListeners();
+        else {
+            console.log('cannot remove all listeners!');
+        }
+        window.removeEventListener('resize', this.onResize.bind(this));
     }
 
     mousedown(e: MouseEvent) {
@@ -85,6 +94,15 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
 
     keyup(e: KeyboardEvent) {
         this.keysPressed.set(e.code, false);
+        this.keysJustPressed.add(e.code);
+    }
+
+    keyHeld(code: string): boolean {
+        return this.keysPressed.get(code) === true;
+    }
+
+    keyJustPressed(code: string): boolean {
+        return this.keysJustPressed.has(code);
     }
 
     focusout() {
@@ -113,10 +131,6 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
 
     abstract frame(dt: number): void;
 
-    help(): String {
-        return "Placeholder!";
-    }
-
     ngAfterViewInit(): void {
         if (!this.hostElement) {
             console.error('Missing container for renderer');
@@ -144,8 +158,13 @@ export abstract class ThreeDemoComponent implements AfterViewInit, OnDestroy {
         const now = Date.now();
         this.frame((now - this.old) / 1000);
         this.old = now;
-        this.renderer.render(this.scene, this.camera);
+        this.render();
+        this.keysJustPressed.clear();
         window.requestAnimationFrame(this.animate.bind(this));
+    }
+
+    render(): void {
+        this.renderer.render(this.scene, this.camera);
     }
 
     get camera() {

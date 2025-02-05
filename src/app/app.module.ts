@@ -46,6 +46,11 @@ import {HyperbolicGeometryComponent} from "./demos/hyperbolic-geometry/hyperboli
 import {TicktockComponent} from "./demos/ticktock/ticktock.component";
 import {TriangleMapComponent} from "./demos/triangle-map/triangle-map.component";
 import {SymmetricComponent} from "./demos/symmetry/symmetric.component";
+import {PhaseComponent} from "./demos/phase/phase.component";
+import {CrossingComponent} from "./demos/crossing/crossing.component";
+import {PolygonMapComponent} from "./demos/symplectic-table/symplectic-table.component";
+import {Regge2Component} from "./demos/regge/regge2.component";
+import {Regge3Component} from "./demos/regge/regge3.component";
 
 @NgModule({
     bootstrap: [AppComponent],
@@ -82,6 +87,11 @@ import {SymmetricComponent} from "./demos/symmetry/symmetric.component";
         TicktockComponent,
         TriangleMapComponent,
         SymmetricComponent,
+        PhaseComponent,
+        CrossingComponent,
+        PolygonMapComponent,
+        Regge2Component,
+        Regge3Component,
     ],
     imports: [
         BrowserModule,

@@ -52,7 +52,7 @@ export class Complex {
     }
 
     isZero(): boolean {
-        return this.equals(Complex.ZERO);
+        return this.modulusSquared() < 0.000_000_01 * 0.000_000_01;
     }
 
     modulus(): number {
@@ -149,6 +149,10 @@ export class Complex {
         return this.minus(other).modulus();
     }
 
+    distanceSquared(other: Complex): number {
+        return this.minus(other).modulusSquared();
+    }
+
     heading(p: Complex) {
         return p.minus(this).argument();
     }
@@ -169,7 +173,7 @@ export class Complex {
 
     equals(other: Complex): boolean {
         if (this.isInfinite()) return other.isInfinite();
-        return closeEnough(this.distance(other), 0);
+        return closeEnough(this.distanceSquared(other), 0);
     }
 
     static lerp(z1: Complex, z2: Complex, t: number) {

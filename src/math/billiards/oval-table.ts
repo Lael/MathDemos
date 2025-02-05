@@ -1,5 +1,9 @@
 import {Vector2} from "three";
+import {AffineCircle} from "../geometry/affine-circle";
+import {Line} from "../geometry/line";
 import {normalizeAngle} from "../math-helpers";
+import {AffineOuterBilliardTable, fixTime} from "./tables";
+import {Complex} from "../complex";
 
 export type Parametrization = (t: number) => Vector2;
 export type ContainmentTest = (v: Vector2) => boolean;
@@ -48,13 +52,84 @@ export function lpCircle(p: number, xScale: number = 1): OvalTable {
     return new OvalTable(parametrization, derivative, containmentTest, rightTangentSolver);
 }
 
+const MAX_ITERATIONS = 100;
+const EPSILON = 0.000_000_001;
+
+function findOnCircle(value: (t: number) => number): number {
+    return 0;
+
+}
+
 // Assumed to be smooth and strictly convex
-export class OvalTable {
+export class OvalTable extends AffineOuterBilliardTable {
+
+    point(time: number): Vector2 {
+        return this.parametrization(fixTime(time));
+    }
+
+    time(point: Vector2): number {
+        const bestGuess = findOnCircle(
+            (t: number) => {
+                return this.parametrization(t).distanceTo(point)
+            }
+        )
+        if (this.parametrization(bestGuess).distanceTo(point) > EPSILON) {
+            throw Error('point does not lie on curve');
+        }
+        return bestGuess;
+    }
+
+    tangentHeading(time: number): number {
+        return this.tangent(fixTime(time)).angle();
+    }
+
+    leftTangentLine(circle: AffineCircle): Line {
+        const bestGuess = findOnCircle(
+            (t: number) => {
+                const pt = this.parametrization(t);
+                if (circle.pointOnBoundary(pt)) return Number.POSITIVE_INFINITY;
+                const th = this.tangentHeading(t);
+                return Math.abs(th - (circle.rightTangentPoint(Complex.fromVector2(pt)).toVector2().sub(pt).angle()));
+            }
+        );
+
+        const pt = this.parametrization(bestGuess);
+        return Line.throughTwoPoints(pt, circle.rightTangentPoint(Complex.fromVector2(pt)).toVector2());
+    }
+
+    rightTangentLine(circle: AffineCircle): Line {
+        const bestGuess = findOnCircle(
+            (t: number) => {
+                const pt = this.parametrization(t);
+                if (circle.pointOnBoundary(pt)) return Number.POSITIVE_INFINITY;
+                const th = -this.tangentHeading(t);
+                return Math.abs(th - (circle.leftTangentPoint(Complex.fromVector2(pt)).toVector2().sub(pt).angle()));
+            }
+        );
+
+        const pt = this.parametrization(bestGuess);
+        return Line.throughTwoPoints(pt, circle.leftTangentPoint(Complex.fromVector2(pt)).toVector2());
+    }
+
+    containsPoint(point: Vector2): boolean {
+        throw new Error("Method not implemented.");
+    }
+
+    pointOnBoundary(point: Vector2): boolean {
+        try {
+            this.time(point);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
     constructor(
         private readonly parametrization: Parametrization,
         private readonly tangent: Parametrization,
         private readonly contains: ContainmentTest,
         private readonly rightTangent?: TangentSolver) {
+        super();
     }
 
     points(divisions: number): Vector2[] {

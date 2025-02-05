@@ -18,10 +18,11 @@ import {normalizeAngle} from "../../math/math-helpers";
 import {reflectOver} from "../demos/unfolding/unfolding.component";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 
-const CLEAR_COLOR = new Color(0x123456);
-const POINT_RADIUS = 0.05;
+const CLEAR_COLOR = new Color(0x0a2933);
+const POINT_RADIUS = 0.025;
 
 export enum PolygonRestriction {
+    NONE = 'None',
     CONVEX = 'Convex',
     KITE = 'Kite',
     CENTRAL = 'Central',
@@ -44,7 +45,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     orbitControls: OrbitControls;
 
     private mat = new MeshBasicMaterial({color: 0xffffff});
-    private geo = new CircleGeometry(POINT_RADIUS);
+    private geo = new CircleGeometry(POINT_RADIUS, 32);
     private com = new Vector2();
 
     dirty = true;
@@ -157,16 +158,16 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
         }
     }
 
-    private reset() {
+    protected reset(n: number = 3, skip: number = 0, offset: number = 0.1234) {
         while (this.draggables.length > 0) {
             this.draggables.pop();
         }
         switch (this.restriction) {
+        case PolygonRestriction.NONE:
         case PolygonRestriction.CENTRAL:
         case PolygonRestriction.CONVEX:
-            const n = 3;
             for (let i = 0; i < n; i++) {
-                const v = polar(1, i * 2 * Math.PI / n + 0.1234);
+                const v = polar(1, (1 + skip) * i * 2 * Math.PI / n + offset);
                 this.draggables.push(this.dot(v));
             }
             break;
@@ -188,6 +189,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     }
 
     pointerdown(event: MouseEvent) {
+        if (event.button !== 0) return;
         if (this.restriction === PolygonRestriction.KITE) return;
         // find location in world
         const screenX = (event.clientX / this.renderer.domElement.clientWidth) * 2 - 1;
@@ -238,7 +240,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
     }
 
     dragEnd() {
-        if (this.restriction === PolygonRestriction.KITE) return;
+        if (this.restriction === PolygonRestriction.KITE || this.restriction === PolygonRestriction.NONE) return;
         const objects = this.dragControls.getObjects();
         const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));
         const [hull, _] = convexHull(vertices);
@@ -273,7 +275,7 @@ export class PolygonPickerComponent extends ThreeDemoComponent implements OnChan
             this.scene.add(...objects);
             const vertices = objects.map(o => new Vector2(o.position.x, o.position.y));
             let hull = [...vertices];
-            if (this.restriction !== PolygonRestriction.KITE) hull = convexHull(vertices)[0];
+            if (this.restriction === PolygonRestriction.CONVEX || this.restriction === PolygonRestriction.CENTRAL) hull = convexHull(vertices)[0];
             this.verticesEvent.emit(hull);
 
             const polyPoints = [];
@@ -297,7 +299,7 @@ function polar(radius: number, theta: number): Vector2 {
     );
 }
 
-function convexHull(points: Vector2[]): Vector2[][] {
+export function convexHull(points: Vector2[]): Vector2[][] {
     if (points.length < 3) return [[...points], []];
     // leftmost point (in case of tie, choose bottommost):
     let bestX = Number.POSITIVE_INFINITY;

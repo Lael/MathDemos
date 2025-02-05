@@ -10,7 +10,7 @@ export function normalizeAngle(theta: number, low: number = -Math.PI) {
 
 export function closeEnough(r1: number, r2: number) {
     if (!isFinite(r1) || !isFinite(r2)) return false;
-    return Math.abs(r1 - r2) < 0.000_000_001;
+    return Math.abs(r1 - r2) < 0.000_000_01;
 }
 
 export function solveQuadratic(a: Complex, b: Complex, c: Complex): Complex[] {

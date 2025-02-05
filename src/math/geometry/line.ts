@@ -18,15 +18,21 @@ export class Line {
         this.c = c / l;
     }
 
-    static srcDir(src: Complex, dir: Complex): Line {
-        if (dir.isZero()) {
+    static srcDir(src: Complex | Vector2, dir: Complex | Vector2): Line {
+        let s: Complex;
+        let d: Complex;
+        if (src instanceof Vector2) s = Complex.fromVector2(src);
+        else s = src;
+        if (dir instanceof Vector2) d = Complex.fromVector2(dir);
+        else d = dir;
+        if (d.isZero()) {
             throw new Error('Degenerate line');
         }
-        const m = dir.times(Complex.I);
+        const m = d.times(Complex.I);
         return new Line(
             m.x,
             m.y,
-            -(m.x * src.x + m.y * src.y)
+            -(m.x * s.x + m.y * s.y)
         );
     }
 
@@ -64,5 +70,13 @@ export class Line {
 
     perpAtPoint(p: Complex | Vector2): Line {
         return new Line(this.b, -this.a, -this.b * p.x + this.a * p.y);
+    }
+
+    project(p: Complex | Vector2) {
+        return this.intersectLine(this.perpAtPoint(p));
+    }
+
+    get slope(): number {
+        return -this.a / this.b;
     }
 }
